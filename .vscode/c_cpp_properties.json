@@ -1,0 +1,41 @@
+{
+    "configurations": [
+        {
+            "name": "GPIO",
+            "includePath": [
+                "e:\\Projects\\Water Level Controller\\Firmware\\Indicator Model V1\\MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE\\Library\\Device\\Include",
+                "e:\\Projects\\Water Level Controller\\Firmware\\Indicator Model V1\\MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE\\Library\\StdDriver\\inc",
+                "C:\\Keil_v5\\C51\\INC",
+                "e:\\Projects\\Water Level Controller\\Firmware\\Indicator Model V1\\MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE\\SampleCode\\Template\\Digital_GT_MS51PC0AE_DISP\\KEIL",
+                "e:\\Projects\\Water Level Controller\\Firmware\\Indicator Model V1\\MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE\\Library\\StdDriver\\src",
+                "e:\\Projects\\Water Level Controller\\Firmware\\Indicator Model V1\\MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE\\Library\\Startup\\KEIL"
+            ],
+            "defines": [
+                "__C51__",
+                "__VSCODE_C51__",
+                "reentrant=",
+                "compact=",
+                "small=",
+                "large=",
+                "data=",
+                "idata=",
+                "pdata=",
+                "bdata=",
+                "xdata=",
+                "code=",
+                "bit=char",
+                "sbit=char",
+                "sfr=char",
+                "sfr16=int",
+                "sfr32=int",
+                "interrupt=",
+                "using=",
+                "_at_=",
+                "_priority_=",
+                "_task_="
+            ],
+            "intelliSenseMode": "${default}"
+        }
+    ],
+    "version": 4
+}

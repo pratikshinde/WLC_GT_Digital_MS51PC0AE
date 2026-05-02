@@ -1,0 +1,11 @@
+build/
+LST/
+Output/
+*.obj
+*.lst
+*.m51
+*.hex
+*.bin
+*.map
+*.uvopt
+*.uvgui.*

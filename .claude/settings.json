@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//e/Projects/Water Level Controller/Firmware/Indicator Model V1/MS51FC0AE_MS51XC0BE_MS51EB0AE_MS51EC0AE_MS51TC0AE_MS51PC0AE/SampleCode/Template/Digital_GT_MS51PC0AE_DISP/**)",
+      "Read(//e/Projects/Water Level Controller/Firmware/Indicator Model V1/**)"
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+version: "4.1"
+name: Project
+type: C51
+deviceName: null
+packDir: null
+srcDirs: []
+virtualFolder:
+  name: <virtual_root>
+  files: []
+  folders:
+    - name: Source Group 1
+      files:
+        - path: WLC_Indicator_model.c
+        - path: GPIO_Config.c
+        - path: GPIO_Config.h
+        - path: Timer3_Int.c
+        - path: Timer3_Int.h
+        - path: WLC_Functions.c
+        - path: WLC_Functions.h
+        - path: ADC_inputs.c
+        - path: ADC_inputs.h
+        - path: TM1637.c
+        - path: TM1637.h
+        - path: PUTCHAR.c
+      folders: []
+    - name: Library
+      files:
+        - path: ../../../../Library/StdDriver/src/sys.c
+        - path: ../../../../Library/StdDriver/src/eeprom.c
+        - path: ../../../../Library/StdDriver/src/adc.c
+        - path: ../../../../Library/StdDriver/src/common.c
+        - path: ../../../../Library/StdDriver/src/delay.c
+        - path: ../../../../Library/StdDriver/src/uart.c
+      folders: []
+    - name: Startup
+      files:
+        - path: ../../../../Library/Startup/KEIL/STARTUP.A51
+      folders: []
+dependenceList: []
+outDir: build
+miscInfo:
+  uid: 30c64f387c4793d388e5a34de94365b6
+targets:
+  GPIO:
+    cppPreprocessAttrs:
+      defineList: []
+      incList:
+        - ../../../../Library/Device/Include
+        - ../../../../Library/StdDriver/inc
+      libList: []
+    excludeList: []
+    settings: {}
+    toolchain: Keil_C51
+    toolchainConfigMap:
+      Keil_C51:
+        options:
+          version: 2
+          afterBuildTasks: []
+          asm-compiler: {}
+          beforeBuildTasks: []
+          c/cpp-compiler:
+            optimization-level: level-8
+            optimization-type: SPEED
+          global:
+            ram-mode: LARGE
+            rom-mode: LARGE
+          linker:
+            misc-controls: ""
+            output-format: elf
+            remove-unused: true
+    uploadConfigMap:
+      Custom:
+        bin: ""
+        commandLine: ""
+        eraseChipCommand: ""
+    uploader: Custom
