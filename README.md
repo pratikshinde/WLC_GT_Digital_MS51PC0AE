@@ -6,26 +6,40 @@ This project contains the firmware for a dual-motor and dual-source Water Level 
 - **Dual Motor Support**: Independent control of two motors (Sump Pump and Borewell Pump) via dedicated relays.
 - **Advanced Operation Modes**: Five distinct modes to handle various plumbing architectures:
     - **ACO (Auto Change Over)**: Primary Sump operation with automatic fallback to Borewell if the Sump is dry.
-    - **SAL (Sump Alternate)**: Alternates between two sources/motors. Supports N:1 cycle logic (e.g., Run Borewell for N cycles for every 1 Sump cycle).
+    - **SAL (Sump Alternate)**: Alternates between two sources/motors. Supports N:1 cycle logic.
     - **SUM (Sump Mode)**: Dedicated single-source Sump-to-Tank operation.
     - **BOR (Borewell Mode)**: Dedicated single-source Borewell-to-Tank operation.
-    - **COM (Combo Mode)**: Intelligent 3-stage logic. Automatically fills the Sump from the Borewell when low, and fills the Tank from the Sump when available. Also includes a "Tank Full" replenishment trigger for the Sump.
-- **Independent Timing**: Separate configurable "Motor Off Time" settings for Motor 1 and Motor 2 to accommodate different recovery rates for Sump and Borewell sources.
-- **Failover Protection**: Automatic motor switching during dry run faults (if enabled).
-- **Voltage Safety**: Real-time AC voltage monitoring with configurable Over-Voltage and Under-Voltage trip points.
-- **User Interface**: 
-    - **TM1637 Display**: Shows water levels, operational states, and configuration parameters.
-    - **Serial Debugging**: Real-time status updates over UART, including current motor, mode, and sensor levels.
+    - **COM (Combo Mode)**: Intelligent 3-stage logic (Borewell -> Sump -> Tank).
+- **Dual Tank Support**: Ability to monitor and manage two separate destination tanks using shared sensor inputs.
+- **Dual Sump Support**: Ability to monitor two separate source sumps.
+- **Independent Timing**: Separate configurable "Motor Off Time" settings for Motor 1 and Motor 2.
+- **Failover Protection**: Automatic motor switching during dry run faults.
+- **Voltage Safety**: Real-time AC voltage monitoring with trip points.
+- **Current Sensing (Optional)**: Support for CT coil to monitor motor load (Amperes) and detect dry run/overload.
+
+---
+
+## Input Mapping
+
+The system uses 8 physical sensor inputs which can be configured for either high-resolution (4 levels) or multi-reservoir (2 levels each) monitoring.
+
+### Standard Mode (Single Sump & Single Tank)
+- **Sump Sensors**: S25, S50, S75, S100 (Source level: 25%, 50%, 75%, 100%)
+- **Tank Sensors**: T25, T50, T75, T100 (Destination level: 25%, 50%, 75%, 100%)
+
+### Dual Sump Mode (`SUM` = 2)
+Splits the sump inputs to monitor two reservoirs:
+- **Sump 1 (SM1)**: Uses `S25` (50%) and `S50` (100%)
+- **Sump 2 (SM2)**: Uses `S75` (50%) and `S100` (100%)
+
+### Dual Tank Mode (`DTK` = ENA)
+Splits the tank inputs to monitor two destination tanks:
+- **Tank 1 (TN1)**: Uses `T25` (50%) and `T50` (100%)
+- **Tank 2 (TN2)**: Uses `T75` (50%) and `T100` (100%)
 
 ---
 
 ## Hardware Configuration
-
-### Input Mapping
-- **Sump Sensors**: S25, S50, S75, S100 (Level indicators for source reservoir).
-- **Tank Sensors**: T25, T50, T75, T100 (Level indicators for destination reservoir).
-- **Voltage Sensor**: AC line voltage feedback.
-- **User Keys**: AUTO, MANUAL, and SET buttons for configuration and mode switching.
 
 ### Output Mapping
 - **Relay 0 & 1**: Motor 1 Control (Primary Sump Motor).
@@ -42,15 +56,17 @@ graph TD
     MCU[MS51PC0AE Microcontroller]
     
     subgraph Inputs
-        S_Sensors[Sump Sensors: 0% - 100%]
-        T_Sensors[Tank Sensors: 0% - 100%]
+        S_Sensors[Sump Sensors: Single or Dual]
+        T_Sensors[Tank Sensors: Single or Dual]
         AC_Volt[AC Voltage Sensor]
+        CT_Sens[Current Sensor - Optional]
     end
 
     subgraph Modes
         ACO[Auto Change Over]
         SAL[Alternate]
         COM[Combo Logic]
+        DTK[Dual Tank Logic]
     end
 
     subgraph Outputs
@@ -63,6 +79,7 @@ graph TD
     S_Sensors --> MCU
     T_Sensors --> MCU
     AC_Volt --> MCU
+    CT_Sens --> MCU
     
     MCU --> Modes
     MCU --> RLY1
@@ -71,23 +88,76 @@ graph TD
     MCU --> UART
 ```
 
+---
+
+## User Interface
+
+The device features a 4-digit TM1637 display and three user buttons for configuration and operation.
+
+### Buttons
+- **AUTO**: Switches the system to Automatic mode. In this mode, the controller manages the pumps based on water levels and voltage conditions.
+- **MANUAL**: Switches the system to Manual mode. Allows the user to start/stop motors manually using the UP/DOWN buttons.
+- **SET**: Enters the configuration menu. Press SET to cycle through parameters, and use the other buttons to adjust values.
+
+### Display Rolling
+In **Dual Tank** or **Dual Sump** modes, the display rolls every 3 seconds to show different reservoir levels:
+- `SM1` / `SM2`: Sump 1 and Sump 2 levels.
+- `TN1` / `TN2`: Tank 1 and Tank 2 levels.
+- `BOR`: Displayed when in Borewell mode.
+- `AMP`: Shows the motor current in Amperes (if CT is enabled).
+
+---
+
 ## Software State Machine
-The firmware utilizes a robust state machine to manage transitions between idle, motor start-up (Dry Run Check), running, and fault recovery.
+The firmware utilizes a robust state machine to manage transitions:
 
 1.  **MOTOR_OFF_SYSTEM_IDLE**: Monitoring levels and waiting for start conditions.
 2.  **MOTOR_ON_PRIMARY_DRY_RUN_CHECK**: Initial start-up phase where water flow is expected.
 3.  **MOTOR_ON_SECONDARY_DRY_CHECK**: Extended check if flow is delayed.
 4.  **MOTOR_OFF_DRY_RUN_FAULT**: Emergency shutdown if no water is detected.
 5.  **MOTOR_OFF_VOLTAGE_FAULT**: Shutdown due to unsafe AC line voltage.
-6.  **MOTOR_OFF_RESET_DELAY**: Configurable cooldown period after a successful cycle or fault.
+6.  **MOTOR_OFF_OVERCURRENT_FAULT**: Shutdown due to high motor current.
+7.  **MOTOR_OFF_RESET_DELAY**: Configurable cooldown period after a cycle or fault.
+8.  **MOTOR_OFF_SENSOR_ERROR**: Safety shutdown if sensor wiring is inconsistent.
+
+---
+
+## File Structure
+- `WLC_Indicator_model.c`: Main entry point and system loop.
+- `WLC_Functions.c / .h`: Core logic for water level management, modes, and settings.
+- `GPIO_Config.c / .h`: Hardware pin assignments and initialization.
+- `ADC_inputs.c / .h`: Drivers for ADC sensing (Voltage, Buttons, Current Transformer).
+- `TM1637.c / .h`: Display driver for the 7-segment LED module.
+- `Timer3_Int.c / .h`: System tick timer (100ms) for timing and delays.
 
 ---
 
 ## Configuration Settings
-Accessible via the onboard UI (SET button) or Serial console:
-- **POD**: Power On Delay (Seconds).
-- **DR1/DR2**: Dry Run Timeouts for primary and secondary checks.
-- **RST**: Dry Run Reset Time (Minutes).
-- **MOD**: Operational Mode (ACO, SAL, SUM, BOR, COM).
-- **CYC**: Motor 2 Cycles in SAL mode.
-- **MOT1/MOT2**: Independent Off-timers for Motor 1 and Motor 2.
+Accessible via the onboard UI (SET button):
+
+| Parameter | Description | Options |
+| :--- | :--- | :--- |
+| **POD** | Power On Delay | 0 - 999 Seconds |
+| **DR1 / DR2** | Dry Run Timeouts | Primary / Secondary timeouts |
+| **RST** | Dry Run Reset Time | Minutes until auto-restart |
+| **TON / TOF** | Tank On/Off Levels | Start/Stop thresholds (e.g., 50/100) |
+| **DTK** | Dual Tank Mode | ENA (Enable) / DIS (Disable) |
+| **SUM** | Sump Type | BOR (Bore only), 1 (Single), 2 (Dual) |
+| **MO1 / MF1** | Motor 1 Timing | On Time / Off Timer (Minutes) |
+| **VOL / VOH** | AC Voltage Range | Min/Max trip points |
+| **OFF** | Off-time Tank Level | Level to trigger off-timer reset |
+| **RPL** | Relay Pulse | Duration for pulse-start starters |
+| **STA** | Starter Type | OLD (Mechanical) / ELE (Electronic) |
+| **DM** | Dual Motor Enable | ENA / DIS |
+| **MOD** | Operational Mode | ACO, ALT, SUM, BOR, COB |
+| **CYC** | Motor 2 Cycles | N:1 ratio for ALT mode |
+| **CTE** | CT Enable | Enable current sensing |
+| **AMP** | Reference Current | Motor rated current for CT |
+
+---
+
+## Build Instructions
+1. Open the project using **Keil µVision**.
+2. Select the **Nuvoton MS51PC0AE** target.
+3. Ensure the **HIRC 24MHz** internal oscillator is selected.
+4. Compile the project and flash using a **Nu-Link** debugger.
