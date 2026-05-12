@@ -161,3 +161,19 @@ Accessible via the onboard UI (SET button):
 2. Select the **Nuvoton MS51PC0AE** target.
 3. Ensure the **HIRC 24MHz** internal oscillator is selected.
 4. Compile the project and flash using a **Nu-Link** debugger.
+
+---
+
+## Recent Improvements & Stability
+The firmware has recently undergone a comprehensive stability and logic audit to ensure reliability in complex configurations.
+
+### Reliability & Core Fixes
+- **Atomic Timing**: Implemented interrupt-safe 32-bit tick reads to prevent "torn" values on the 8-bit MCU.
+- **Underflow Protection**: Fixed multiple unsigned arithmetic underflow bugs in state machine timeouts to ensure reliable state transitions.
+- **Boot Stability**: Corrected uninitialized timer variables at boot and replaced fragile magic-number loop escapes with robust flags.
+
+### Logic Enhancements
+- **Full Dual-Tank Support**: Restored missing operational paths for Dual-Tank mode, including automatic boot-starting, ACO/BOR mode bypass, and COM mode replenishment logic.
+- **Enhanced Failover**: Extended dry-run failover logic to support all dual-motor modes, ensuring the system can automatically switch pumps if the primary motor faults.
+- **Optimized Logging**: Improved serial debug output with accurate countdowns and state indicators for easier field troubleshooting.
+
