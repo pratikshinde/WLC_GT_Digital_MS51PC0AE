@@ -91,23 +91,45 @@ unsigned int readButton(void)
 unsigned int readACVoltage(void)
 {
     unsigned int temp;
+    unsigned long sum = 0;
+    unsigned int i;
+    unsigned int avg_adc;
     float volt = 0;
+    static float filtered_voltage = 0.0f;
+
     ENABLE_ADC_CH6;
     ADCCON1 |= 0X30; /* clock divider */
     ADCCON2 |= 0X0E; /* AQT time */
-    clr_ADCCON0_ADCF;
-    set_ADCCON0_ADCS;
-    while (!(ADCCON0 & SET_BIT7))
-        ; /* wait ADCF */
-    temp = (ADCRH << 4) + (ADCRL & 0x0F);
+
+    /* Take 20 samples over ~10ms (one full 100Hz ripple cycle).
+     * The ripple component averages to zero, leaving only the DC value.
+     * 20 samples x 500us spacing = 10ms total. */
+    for (i = 0; i < 20; i++)
+    {
+        clr_ADCCON0_ADCF;
+        set_ADCCON0_ADCS;
+        while (!(ADCCON0 & SET_BIT7))
+            ; /* wait ADCF */
+        temp = (ADCRH << 4) + (ADCRL & 0x0F);
+        sum += temp;
+        Timer0_Delay(24000000, 1, 500); /* 500us between samples */
+    }
+
     DISABLE_ADC;
-    Timer0_Delay(24000000, 10, 1000);
-    volt = ((temp * VDD_Voltage) / 4096);
-    // temp = volt;
+    SFRS = 0; /* Ensure Page 0 for UART SFRs */
+
+    avg_adc = (unsigned int)(sum / 20);
+    volt = ((avg_adc * VDD_Voltage) / 4096);
     volt = 0.08 * volt + 20;
-    lineVoltage = volt;
-    printf("ADC Count %d Vdd:%0.2f AC Voltage: %0.2f", temp, VDD_Voltage / 1000, lineVoltage);
-    return temp;
+
+    /* IIR low-pass filter for inter-call smoothing (alpha = 0.3) */
+    if (filtered_voltage == 0.0f)
+        filtered_voltage = volt;
+    filtered_voltage = (filtered_voltage * 0.7f) + (volt * 0.3f);
+
+    lineVoltage = filtered_voltage;
+    printf("ADC Avg:%u Vdd:%0.2f AC Voltage:%0.1f", avg_adc, VDD_Voltage / 1000, lineVoltage);
+    return avg_adc;
 }
 void readVdd(void)
 {
