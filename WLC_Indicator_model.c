@@ -11,6 +11,7 @@ void main(void)
     unsigned int voltageCheckCount = 0, n = 0;
     uint32_t prev_ticks_100ms, start_ticks_100ms, display_ticks_100ms;
     char configLEDTimeOut = 0;
+    unsigned char configRequested = 0;
     Timer3_INT_Initial(DIV128, 0xb6, 0xc2);
     MODIFY_HIRC(HIRC_24);
     Enable_UART0_VCOM_printf_24M_115200();
@@ -18,6 +19,7 @@ void main(void)
     clr_IE_ES;
     printf("\r\nBoot...");
     prev_ticks_100ms = getTicks100ms();
+    start_ticks_100ms = prev_ticks_100ms;
     while ((getTicks100ms() - prev_ticks_100ms) < 20)
         ;
     prev_ticks_100ms = getTicks100ms();
@@ -46,7 +48,8 @@ void main(void)
         }
         if (readButton() == 2)
         {
-            prev_ticks_100ms = 300; // come out of 10S Boot Loop
+            configRequested = 1;
+            break;
         }
     }
     printf("\r\nRead Settings...");
@@ -56,7 +59,7 @@ void main(void)
     readSettingsMotorOffRemainingEEPROM();
     readBandgapCalibratedValue();
     // updateSensorLED();
-    if (prev_ticks_100ms == 300)
+    if (configRequested)
     {
         // readSettingsEEPROM();
         configSettings();

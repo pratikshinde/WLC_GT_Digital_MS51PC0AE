@@ -1649,9 +1649,9 @@ static void StateHandler_MotorOnDelay(void)
     }
     else
     {
-        if (((MOTOR_ON_DELAY) - (getTicks100ms() - state_ticks_100ms) / 10) > 0)
+        if ((getTicks100ms() - state_ticks_100ms) / 10 < MOTOR_ON_DELAY)
         {
-            printf("\r\nMOT On Delay:%d", (MOTOR_ON_DELAY) - (getTicks100ms() - state_ticks_100ms) / 10);
+            printf("\r\nMOT On Delay:%d", MOTOR_ON_DELAY - (int)((getTicks100ms() - state_ticks_100ms) / 10));
         }
         else
         {
@@ -1672,7 +1672,7 @@ static void StateHandler_PrimaryDryRunCheck(void)
         {
             printf("\r\nMotor Off");
         }
-        if (GlobalSettings.dryRunTimeOut - ((getTicks100ms() - state_ticks_100ms) / 10) > 0)
+        if ((getTicks100ms() - state_ticks_100ms) / 10 < GlobalSettings.dryRunTimeOut)
         {
             if (!dryRunState)
             {
@@ -1696,7 +1696,7 @@ static void StateHandler_PrimaryDryRunCheck(void)
                 }
                 else
                 {
-                    if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
+                    if (GlobalSettings.dualMotorEnable)
                     {
                         if (O_RLY_0 || O_RLY_1)
                             motor1FaultFlag = 1;
@@ -1755,7 +1755,7 @@ static void StateHandler_DryRunFault(void)
     }
     else
     {
-        if (((GlobalSettings.dryRunReset * 60) - (getTicks100ms() - state_ticks_100ms) / 10) > 0)
+        if ((getTicks100ms() - state_ticks_100ms) / 10 < (GlobalSettings.dryRunReset * 60))
         {
             printf("\r\nDry Run Reset Timeout:%ld", (GlobalSettings.dryRunReset * 60) - (getTicks100ms() - state_ticks_100ms) / 10);
             resetMinutes = ((GlobalSettings.dryRunReset * 60) - (getTicks100ms() - state_ticks_100ms) / 10) / 60;
@@ -1794,7 +1794,7 @@ static void StateHandler_SecondaryDryRunCheck(void)
     {
         if (GlobalSettings.dryRunTimeOut)
         {
-            if (((GlobalSettings.secondaryDryRunDuration) - (getTicks100ms() - state_ticks_100ms) / 10) > 0)
+            if ((getTicks100ms() - state_ticks_100ms) / 10 < GlobalSettings.secondaryDryRunDuration)
             {
                 printf("\r\nSecondary Dry Run Timeout:%ld", (GlobalSettings.secondaryDryRunDuration) - (getTicks100ms() - state_ticks_100ms) / 10);
                 flowLEDsMotorDryRunCheck();
@@ -1808,7 +1808,7 @@ static void StateHandler_SecondaryDryRunCheck(void)
             }
             else
             {
-                if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
+                if (GlobalSettings.dualMotorEnable)
                 {
                     if (O_RLY_0 || O_RLY_1)
                         motor1FaultFlag = 1;
@@ -1858,9 +1858,9 @@ static void StateHandler_MotorOff(void)
     }
     else
     {
-        if (((GlobalSettings.offTimeTankOffLevel) - (getTicks100ms() - state_ticks_100ms) / 10) > 0)
+        if ((getTicks100ms() - state_ticks_100ms) / 10 < GlobalSettings.offTimeTankOffLevel)
         {
-            printf("\r\nMOT OFF Time:%ld", (GlobalSettings.offTimeTankOffLevel) - (getTicks100ms() - state_ticks_100ms) / 10);
+            printf("\r\nMOT OFF Time:%ld", (long)GlobalSettings.offTimeTankOffLevel - (long)((getTicks100ms() - state_ticks_100ms) / 10));
             flowLEDsMotorOn();
         }
         else
@@ -1897,9 +1897,9 @@ static void StateHandler_MotorOffResetDelay(void)
 static void StateHandler_VoltageFault(void)
 {
     printf("\r\nState:MOTOR_OFF_VOLTAGE_FAULT");
-    if (((VOLTAGE_RESET_TIME) - (getTicks100ms() - voltageFaultTicks) / 10) > 0)
+    if ((getTicks100ms() - voltageFaultTicks) / 10 < VOLTAGE_RESET_TIME)
     {
-        printf("\r\nVoltage Fault:%ld", (VOLTAGE_RESET_TIME) - (getTicks100ms() - voltageFaultTicks) / 10);
+        printf("\r\nVoltage Fault:%ld", (long)VOLTAGE_RESET_TIME - (long)((getTicks100ms() - voltageFaultTicks) / 10));
         flowLEDsMotorOff();
         Motor1_Off();
         Motor2_Off();
@@ -2220,7 +2220,73 @@ unsigned int checkMotorOnConditions(void)
     }
     else if (GlobalSettings.dualTankEnable)
     {
-        if (((GlobalSensorCount.stateT25 == 0) || (GlobalSensorCount.stateT75 == 0)) && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
+        unsigned char dualTankLow = ((GlobalSensorCount.stateT25 == 0) || (GlobalSensorCount.stateT75 == 0));
+
+        // Boot start logic for dual tank
+        if (state == BOOT_START)
+        {
+            printf("\r\nBoot Motor Start DualTank");
+            if (dualTankLow && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR))))
+            {
+                if (!motorState)
+                {
+                    state = MOTOR_ON;
+                    printf("\r\nBoot Motor Start DualTank2");
+                    state_ticks_100ms = getTicks100ms();
+                    motorOnInitFlag = 0;
+                    ret_val = 1;
+                }
+            }
+            else
+            {
+                state = MOTOR_OFF_SYSTEM_IDLE;
+            }
+            return ret_val;
+        }
+
+        // COM Mode Special Triggers for dual tank
+        if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
+        {
+            if (!dualTankLow && sumpLevel < 100)
+            {
+                if (!motorState)
+                {
+                    state = MOTOR_ON;
+                    printf("\r\nCOM DT: Tanks Full, Filling Sump");
+                    state_ticks_100ms = getTicks100ms();
+                    motorOnInitFlag = 0;
+                    ret_val = 1;
+                }
+                return ret_val;
+            }
+            if (dualTankLow && sumpLevel < 25)
+            {
+                if (!motorState)
+                {
+                    state = MOTOR_ON;
+                    printf("\r\nCOM DT: Tank Low, Sump Empty -> Start Bore");
+                    state_ticks_100ms = getTicks100ms();
+                    motorOnInitFlag = 0;
+                    ret_val = 1;
+                }
+                return ret_val;
+            }
+        }
+
+        // ACO/BOR: bypass sumpEmptyDetectFlag for dual tank
+        if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && dualTankLow)
+        {
+            if (!motorState)
+            {
+                state = MOTOR_ON;
+                printf("\r\nACO/BOR DT motor start");
+                state_ticks_100ms = getTicks100ms();
+                motorOnInitFlag = 0;
+                ret_val = 1;
+                sumpEmptyDetectFlag = 0;
+            }
+        }
+        else if (dualTankLow && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
         {
             printf("\r\nMotor start");
             state = MOTOR_ON;
@@ -2228,7 +2294,7 @@ unsigned int checkMotorOnConditions(void)
             motorOnInitFlag = 0;
             sumpEmptyDetectFlag = 0;
         }
-        else if (((GlobalSensorCount.stateT25 == 0) || (GlobalSensorCount.stateT75 == 0)) && (sumpLevel > 0) && ((!sumpEmptyDetectFlag)))
+        else if (dualTankLow && (sumpLevel > 0) && ((!sumpEmptyDetectFlag)))
         {
             printf("\r\nMotor start");
             state = MOTOR_ON;
@@ -2421,14 +2487,17 @@ unsigned int checkMotorOffConditions(void)
             unsigned int currentMotorOnTime = (runningMotor == 2) ? GlobalSettings.motorOnTime2 : GlobalSettings.motorOnTime1;
             if (currentMotorOnTime)
             {
-                printf("\r\nMotorOnTimeRemaining:%ld ", currentMotorOnTime - ((getTicks100ms() - motorElapsedTicks) / 600));
-                if (((getTicks100ms() - motorElapsedTicks) / 600) >= currentMotorOnTime)
+                unsigned long elapsedMinutes = (getTicks100ms() - motorElapsedTicks) / 600;
+                if (elapsedMinutes >= currentMotorOnTime)
                 {
-                    // Motor1_Off();
-                    printf("\r\nMotor off");
+                    printf("\r\nMotor off - on time exceeded");
                     state_ticks_100ms = getTicks100ms();
                     state = MOTOR_OFF;
                     ret_val = 1;
+                }
+                else
+                {
+                    printf("\r\nMotorOnTimeRemaining:%ld ", (long)(currentMotorOnTime - elapsedMinutes));
                 }
             }
         }

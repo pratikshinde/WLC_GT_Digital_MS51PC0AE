@@ -4,7 +4,11 @@
 volatile uint32_t ticks_100ms = 0;
 uint32_t getTicks100ms(void)
 {
-	return ticks_100ms;
+	uint32_t t;
+	EA = 0;          /* Disable interrupts for atomic 32-bit read */
+	t = ticks_100ms;
+	EA = 1;          /* Re-enable interrupts */
+	return t;
 }
 /************************************************************************************************************
 *    TIMER 3 interrupt subroutine
