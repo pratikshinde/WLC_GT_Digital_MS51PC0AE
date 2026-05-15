@@ -13,6 +13,6 @@ float readMotorCurrent(unsigned char motor_channel);
 unsigned int readACVoltage(void);
 void readVdd(void);
 void readBandgapCalibratedValue(void);
-unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, unsigned char motorState);
+unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, unsigned char motorState, unsigned char transformerType);
 unsigned int getLineVoltage(void);
 #endif

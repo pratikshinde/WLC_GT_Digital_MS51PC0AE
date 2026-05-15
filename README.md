@@ -171,10 +171,17 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Atomic Timing**: Implemented interrupt-safe 32-bit tick reads to prevent "torn" values on the 8-bit MCU.
 - **Underflow Protection**: Fixed multiple unsigned arithmetic underflow bugs in state machine timeouts to ensure reliable state transitions.
 - **Boot Stability**: Corrected uninitialized timer variables at boot and replaced fragile magic-number loop escapes with robust flags.
-- **AC Voltage Stabilization**: Improved sensing accuracy by implementing 20-sample averaging over a full 10ms (100Hz) ripple cycle, combined with an IIR low-pass filter to eliminate ±10V fluctuations.
+- **AC Voltage Optimization**: 
+    - Reduced fault detection latency from 4 seconds to ~1 second for better hardware protection.
+    - Improved sensing accuracy by implementing 20-sample averaging over a full 10ms (100Hz) ripple cycle, combined with an IIR low-pass filter (alpha = 0.7).
+- **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
 
 ### Logic Enhancements
+- **SAL Mode Independent Rest**: 
+    - Transitioned from a global system rest to independent per-motor rest tracking.
+    - Fixed a critical bug where `motorOffBySensorFlag` was not resetting, which previously blocked rest timers from starting.
+    - Added real-time second-by-second countdown logs for resting motors.
 - **Full Dual-Tank Support**: Restored missing operational paths for Dual-Tank mode, including automatic boot-starting, ACO/BOR mode bypass, and COM mode replenishment logic.
 - **Enhanced Failover**: Extended dry-run failover logic to support all dual-motor modes, ensuring the system can automatically switch pumps if the primary motor faults.
-- **Optimized Logging**: Improved serial debug output with accurate countdowns and state indicators for easier field troubleshooting.
+- **Settings Transparency**: Fixed bit-width artifacts in debug logs (e.g., DualMotorEnable: 256) and added explicit Motor Mode reporting.
 

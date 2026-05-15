@@ -9,13 +9,14 @@ unsigned int getLineVoltage(void)
 {
     return corrected_volatge;
 }
-unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, unsigned char motorState)
+unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, unsigned char motorState, unsigned char transformerType)
 {
     unsigned char ret_val;
     corrected_volatge = 0;
     // readACVoltage();
-    if (motorState)
+    if (motorState && transformerType == 0)
     {
+        /* 12-0-12 center tap: compensate for voltage drop when relay is ON */
         corrected_volatge = lineVoltage + (0.14 * lineVoltage);
         if ((minACVolt > corrected_volatge) || (maxACVolt < corrected_volatge))
         {
@@ -91,9 +92,10 @@ unsigned int readButton(void)
 unsigned int readACVoltage(void)
 {
     unsigned int temp;
-    unsigned long sum = 0;
+    unsigned int max_val = 0;
+    unsigned int min_val = 4096;
     unsigned int i;
-    unsigned int avg_adc;
+    unsigned int dc_adc;
     float volt = 0;
     static float filtered_voltage = 0.0f;
 
@@ -101,35 +103,39 @@ unsigned int readACVoltage(void)
     ADCCON1 |= 0X30; /* clock divider */
     ADCCON2 |= 0X0E; /* AQT time */
 
-    /* Take 20 samples over ~10ms (one full 100Hz ripple cycle).
-     * The ripple component averages to zero, leaving only the DC value.
-     * 20 samples x 500us spacing = 10ms total. */
-    for (i = 0; i < 20; i++)
+    /* Peak-to-peak midpoint detection over ~20ms (2 full 100Hz ripple cycles).
+     * 400 samples x 50us spacing = 20ms.
+     * True DC value = (max + min) / 2, immune to ripple phase. */
+    for (i = 0; i < 400; i++)
     {
         clr_ADCCON0_ADCF;
         set_ADCCON0_ADCS;
         while (!(ADCCON0 & SET_BIT7))
             ; /* wait ADCF */
         temp = (ADCRH << 4) + (ADCRL & 0x0F);
-        sum += temp;
-        Timer0_Delay(24000000, 1, 500); /* 500us between samples */
+        if (temp > max_val)
+            max_val = temp;
+        if (temp < min_val)
+            min_val = temp;
+        Timer0_Delay(24000000, 1, 50); /* 50us between samples */
     }
 
     DISABLE_ADC;
     SFRS = 0; /* Ensure Page 0 for UART SFRs */
 
-    avg_adc = (unsigned int)(sum / 20);
-    volt = ((avg_adc * VDD_Voltage) / 4096);
-    volt = 0.08 * volt + 20;
+    dc_adc = (max_val + min_val) / 2;
+    volt = ((dc_adc * VDD_Voltage) / 4096);
+    volt = 0.076 * volt + 20;
 
-    /* IIR low-pass filter for inter-call smoothing (alpha = 0.3) */
+    /* Faster IIR low-pass filter for response within 2-3s (alpha = 0.5) */
     if (filtered_voltage == 0.0f)
         filtered_voltage = volt;
-    filtered_voltage = (filtered_voltage * 0.7f) + (volt * 0.3f);
+    filtered_voltage = (filtered_voltage * 0.5f) + (volt * 0.5f);
 
     lineVoltage = filtered_voltage;
-    printf("ADC Avg:%u Vdd:%0.2f AC Voltage:%0.1f", avg_adc, VDD_Voltage / 1000, lineVoltage);
-    return avg_adc;
+    printf("ADC DC:%u (Max:%u Min:%u) Vdd:%0.2f AC Voltage:%0.1f",
+           dc_adc, max_val, min_val, VDD_Voltage / 1000, lineVoltage);
+    return dc_adc;
 }
 void readVdd(void)
 {

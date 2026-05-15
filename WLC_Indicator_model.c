@@ -89,11 +89,8 @@ void main(void)
             handleDisplayRolling();
         }
 
-        if (voltageCheckCount > 5)
-        {
-            readVdd();
-            readACVoltage();
-            voltageCheckCount = 0;
-        }
+        readVdd();
+        readACVoltage();
+        voltageCheckCount = 0;
     }
 }

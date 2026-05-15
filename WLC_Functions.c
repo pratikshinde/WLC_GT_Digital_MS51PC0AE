@@ -33,6 +33,7 @@ struct
     unsigned int motor2Cycles;     // if Motor1 runs for 1 cycle, how many times Motor2 should work
     unsigned char ctEnable;        // 0: Disable, 1: Enable
     float referenceCurrent;
+    unsigned char transformerType;  // 0: 12-0-12 (center tap), 1: 12-0-12-0 (dual output)
     unsigned int state2;
 } GlobalSettings;
 
@@ -75,6 +76,10 @@ unsigned int motor2CycleCounter = 0;
 unsigned char overCurrentFlag = 0;
 unsigned char underCurrentFlag = 0;
 unsigned long underCurrentStartTicks = 0, overCurrentStartTicks = 0;
+
+// SAL Mode: Per-motor independent rest tracking
+unsigned char motor1InRest = 0, motor2InRest = 0;
+unsigned long motor1RestStartTicks = 0, motor2RestStartTicks = 0;
 
 unsigned long buzzerTank_ticks_100ms, buzzerSump_ticks_100ms, motorElapsedTicks, motorResetTicks, voltageFaultTicks;
 
@@ -187,6 +192,11 @@ void refreshCurrentDisplay(void)
                 }
             }
         }
+    }
+    else if (state == MOTOR_OFF_VOLTAGE_FAULT)
+    {
+        TM1637_WriteString(1, "VOL");
+        TM1637_WriteNumber(2, getLineVoltage());
     }
     else
     {
@@ -823,7 +833,8 @@ typedef enum
     DISP_OLD_ELE,
     DISP_SUMP_MODE,
     DISP_AMP,
-    DISP_MOTOR_MODE
+    DISP_MOTOR_MODE,
+    DISP_TRAFO
 } ParameterDisplayType;
 
 static float editFloatParameter(const char *label, float current_val, float min_val, float max_val, float up_step, float down_step, ParameterDisplayType dispType)
@@ -989,6 +1000,11 @@ static unsigned int editParameter(const char *label, unsigned int current_val, u
             TM1637_WriteString(2, current_val ? "ENA" : "DIS");
             printf("%s", current_val ? "Enabled" : "Disabled");
         }
+        else if (dispType == DISP_TRAFO)
+        {
+            TM1637_WriteString(2, current_val ? "DUL" : "CTP");
+            printf("%s", current_val ? "12-0-12-0" : "12-0-12");
+        }
     }
     count_val = current_val;
     option_select_ticks_100ms = getTicks100ms();
@@ -1149,6 +1165,11 @@ static unsigned int editParameter(const char *label, unsigned int current_val, u
                     TM1637_WriteString(2, count_val ? "ENA" : "DIS");
                     printf("%s", count_val ? "Enabled" : "Disabled");
                 }
+                else if (dispType == DISP_TRAFO)
+                {
+                    TM1637_WriteString(2, count_val ? "DUL" : "CTP");
+                    printf("%s", count_val ? "12-0-12-0" : "12-0-12");
+                }
             }
         }
     }
@@ -1179,6 +1200,7 @@ void configSettings(void)
     GlobalSettings.motorOffTime1 = editParameter("MF1", GlobalSettings.motorOffTime1, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.minACVolt = editParameter("VOL", GlobalSettings.minACVolt, 110, 180, 1, 1, DISP_NUMERIC);
     GlobalSettings.maxACVolt = editParameter("VOH", GlobalSettings.maxACVolt, 270, 300, 1, 1, DISP_NUMERIC);
+    GlobalSettings.transformerType = editParameter("TRF", GlobalSettings.transformerType, 0, 1, 1, 1, DISP_TRAFO);
     GlobalSettings.offTimeTankOffLevel = editParameter("OFF", GlobalSettings.offTimeTankOffLevel, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.relayPulse = editParameter("RPL", GlobalSettings.relayPulse, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.starterSelection = editParameter("STA", GlobalSettings.starterSelection, 0, 1, 1, 1, DISP_OLD_ELE);
@@ -1222,11 +1244,13 @@ void readSettingsEEPROM(void)
         printf("\r\nMaxVoltage: %d", GlobalSettings.maxACVolt);
         printf("\r\noffTimeTankOffLevel: %d", GlobalSettings.offTimeTankOffLevel);
         printf("\r\nrelayPulse: %d", GlobalSettings.relayPulse);
-        printf("\r\nstarterSelection: %d", GlobalSettings.starterSelection);
-        printf("\r\nDualMotorEnable: %d", GlobalSettings.dualMotorEnable);
-        printf("\r\nSumpType: %d", GlobalSettings.sumpType);
-        printf("\r\nCT Enable: %d", GlobalSettings.ctEnable);
+        printf("\r\nstarterSelection: %d", (int)GlobalSettings.starterSelection);
+        printf("\r\nDualMotorEnable: %d", (int)GlobalSettings.dualMotorEnable);
+        printf("\r\nMotor Mode: %d", (int)GlobalSettings.motorMode);
+        printf("\r\nSumpType: %d", (int)GlobalSettings.sumpType);
+        printf("\r\nCT Enable: %d", (int)GlobalSettings.ctEnable);
         printf("\r\nCT Ref: %0.1f", GlobalSettings.referenceCurrent);
+        printf("\r\nTransformer: %s", GlobalSettings.transformerType ? "12-0-12-0" : "12-0-12");
         printf("\r\nMode: ");
         if (GlobalSettings.workMode == WORKING_MODE_AUTO)
         {
@@ -1276,6 +1300,7 @@ void readSettingsEEPROM(void)
         GlobalSettings.motor2Cycles = 0;
         GlobalSettings.ctEnable = 0;
         GlobalSettings.referenceCurrent = 0.0f;
+        GlobalSettings.transformerType = 0;      // Default: 12-0-12 center tap
 
         L_MODE_AUTO = 0;
         printf("\r\nDefault..");
@@ -1334,6 +1359,24 @@ void updateMotorOffRemainingRemainingTime(long remainingTime)
 }
 int getRemainingOffTime(void)
 {
+    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    {
+        long rem1 = 999999, rem2 = 999999;
+        if (motor1InRest)
+        {
+            long elapsed = (long)((getTicks100ms() - motor1RestStartTicks) / 10);
+            rem1 = ((long)GlobalSettings.motorOffTime1 * 60) - elapsed;
+            if (rem1 < 0) rem1 = 0;
+        }
+        if (motor2InRest)
+        {
+            long elapsed = (long)((getTicks100ms() - motor2RestStartTicks) / 10);
+            rem2 = ((long)GlobalSettings.motorOffTime2 * 60) - elapsed;
+            if (rem2 < 0) rem2 = 0;
+        }
+        if (rem1 < rem2) return (int)(rem1 / 60);
+        return (int)(rem2 / 60);
+    }
     return (motorOffTime_val - ((getTicks100ms() - motorResetTicks) / 10)) / 60;
 }
 void enableMotorOffTimer(unsigned int offTime)
@@ -1426,6 +1469,7 @@ void Motor1_On()
     runningMotor = 1;
 
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
+    motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
 }
 
@@ -1498,6 +1542,7 @@ void Motor2_On()
     runningMotor = 2;
 
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
+    motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
 }
 
@@ -1590,6 +1635,7 @@ static void Handle_ButtonPresses(void)
             printf("\r\nMAN");
             // L_MODE_SEL = MODE_LED_MANUAL_RED;
             state = MOTOR_OFF_MANUAL;
+            motor1InRest = motor2InRest = 0; // Clear SAL rest flags on mode switch
             TM1637_WriteString(1, "MOD");
             TM1637_WriteString(2, "MAN");
             L_MODE_AUTO = 1;
@@ -1615,6 +1661,7 @@ static void StateHandler_BootStart(void)
     if (GlobalSettings.workMode == WORKING_MODE_AUTO)
     {
         printf("\r\nState:BOOT_START");
+        motor1InRest = motor2InRest = 0; // Clear SAL rest flags on boot
         if (motorOffTime_val)
         {
             printf("\r\nPending Motor Off Time: %ld", motorOffTime_val);
@@ -1770,11 +1817,13 @@ static void StateHandler_DryRunFault(void)
             printf("\r\nDry Run Reset Over");
             state = MOTOR_OFF_SYSTEM_IDLE;
             motor1FaultFlag = motor2FaultFlag = 0; // Clear faults
+            motor1InRest = motor2InRest = 0; // Clear SAL rest flags
         }
         if (reset_press_count)
         {
             state = MOTOR_OFF_SYSTEM_IDLE;
             motor1FaultFlag = motor2FaultFlag = 0; // Clear faults
+            motor1InRest = motor2InRest = 0; // Clear SAL rest flags
             reset_press_count = 0;
             printf("\r\nDry Run Reset Over");
         }
@@ -1848,6 +1897,56 @@ static void StateHandler_SecondaryDryRunCheck(void)
     }
 }
 
+// SAL Mode: Check and expire per-motor rest timers
+static void updateSALRestTimers(void)
+{
+    static unsigned long last_print_sec = 0;
+    unsigned long current_sec = getTicks100ms() / 10;
+    unsigned char should_print = (current_sec != last_print_sec);
+
+    if (motor1InRest)
+    {
+        unsigned long elapsed = (getTicks100ms() - motor1RestStartTicks) / 10;
+        unsigned long total = (unsigned long)GlobalSettings.motorOffTime1 * 60;
+        if (elapsed >= total)
+        {
+            motor1InRest = 0;
+            printf("\r\nM1 Rest Over");
+        }
+        else if (should_print)
+        {
+            printf("\r\nM1 Rest Rem:%lu s", total - elapsed);
+        }
+    }
+    if (motor2InRest)
+    {
+        unsigned long elapsed = (getTicks100ms() - motor2RestStartTicks) / 10;
+        unsigned long total = (unsigned long)GlobalSettings.motorOffTime2 * 60;
+        if (elapsed >= total)
+        {
+            motor2InRest = 0;
+            printf("\r\nM2 Rest Over");
+        }
+        else if (should_print)
+        {
+            printf("\r\nM2 Rest Rem:%lu s", total - elapsed);
+        }
+    }
+
+    if (should_print)
+    {
+        last_print_sec = current_sec;
+    }
+}
+
+// SAL Mode: Returns 1 if at least one motor is not resting and not faulted
+static unsigned char isSALMotorAvailable(void)
+{
+    if (!motor1InRest && !motor1FaultFlag) return 1;
+    if (!motor2InRest && !motor2FaultFlag) return 1;
+    return 0;
+}
+
 static void StateHandler_MotorOff(void)
 {
     printf("\r\nState:MOTOR_OFF");
@@ -1865,12 +1964,48 @@ static void StateHandler_MotorOff(void)
         }
         else
         {
+            unsigned char stoppedMotor = runningMotor; // Capture before Motor_Off clears it
             unsigned int currentOffTime = (runningMotor == 2) ? GlobalSettings.motorOffTime2 : GlobalSettings.motorOffTime1;
             printf("\r\nMOT SW OFF");
             L_FLOW_1 = L_FLOW_2 = L_FLOW_3 = 0;
             Motor1_Off();
             Motor2_Off();
-            if (currentOffTime && (motorOffBySensorFlag == 0))
+
+            // SAL Mode: Per-motor independent rest
+            if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL
+                && currentOffTime && (motorOffBySensorFlag == 0))
+            {
+                // Mark the stopped motor as resting
+                if (stoppedMotor == 2)
+                {
+                    motor2InRest = 1;
+                    motor2RestStartTicks = getTicks100ms();
+                    printf("\r\nM2 Rest Start: %d min", GlobalSettings.motorOffTime2);
+                }
+                else
+                {
+                    motor1InRest = 1;
+                    motor1RestStartTicks = getTicks100ms();
+                    printf("\r\nM1 Rest Start: %d min", GlobalSettings.motorOffTime1);
+                }
+
+                // Check if the OTHER motor can run now
+                updateSALRestTimers();
+                if (isSALMotorAvailable())
+                {
+                    // Route through IDLE so checkMotorOnConditions() validates
+                    // tank level, sump level, and voltage before starting
+                    printf("\r\nSAL: Other motor available, checking conditions");
+                    state = MOTOR_OFF_SYSTEM_IDLE;
+                }
+                else
+                {
+                    printf("\r\nSAL: Both motors resting");
+                    state = MOTOR_OFF_RESET_DELAY;
+                    motorResetTicks = getTicks100ms();
+                }
+            }
+            else if (currentOffTime && (motorOffBySensorFlag == 0))
             {
                 state = MOTOR_OFF_RESET_DELAY;
                 enableMotorOffTimer(currentOffTime);
@@ -1891,7 +2026,27 @@ static void StateHandler_MotorOffResetDelay(void)
 {
     printf("\r\nState:MOTOR_OFF_RESET_DELAY");
     flowLEDsMotorOff();
-    checkMotorResetTimeOut();
+
+    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    {
+        updateSALRestTimers();
+        if (isSALMotorAvailable())
+        {
+            printf("\r\nSAL: Motor available after rest");
+            state_ticks_100ms = getTicks100ms();
+            state = MOTOR_OFF_SYSTEM_IDLE;
+        }
+        else if (readButton() == 1)
+        {
+            // Manual override: clear all rest timers
+            motor1InRest = motor2InRest = 0;
+            state = MOTOR_OFF_SYSTEM_IDLE;
+        }
+    }
+    else
+    {
+        checkMotorResetTimeOut();
+    }
 }
 
 static void StateHandler_VoltageFault(void)
@@ -1903,8 +2058,6 @@ static void StateHandler_VoltageFault(void)
         flowLEDsMotorOff();
         Motor1_Off();
         Motor2_Off();
-        TM1637_WriteString(1, "VOL");
-        TM1637_WriteNumber(2, getLineVoltage());
     }
     else
     {
@@ -1968,6 +2121,11 @@ static void StateHandler_SensorError(void)
 void wlcLoop(void)
 {
     Handle_ButtonPresses();
+    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    {
+        updateSALRestTimers();
+    }
+
     switch (state)
     {
     case BOOT_START:
@@ -2031,17 +2189,56 @@ void startSelectedMotor(void)
             break;
 
         case MOTOR_MODE_SAL: // Sump Alternate
+            // Update rest timers first
+            updateSALRestTimers();
+
             if (motor1FaultFlag && !motor2FaultFlag)
             {
-                Motor2_On();
+                if (!motor2InRest) Motor2_On();
+                else { state = MOTOR_OFF_RESET_DELAY; motorResetTicks = getTicks100ms(); }
             }
             else if (motor2FaultFlag && !motor1FaultFlag)
             {
-                Motor1_On();
+                if (!motor1InRest) Motor1_On();
+                else { state = MOTOR_OFF_RESET_DELAY; motorResetTicks = getTicks100ms(); }
             }
             else if (!motor1FaultFlag && !motor2FaultFlag)
             {
-                if (motorAlternateFlag)
+                // Pick whichever motor is NOT resting; prefer alternate
+                if (!motor1InRest && !motor2InRest)
+                {
+                    // Both available — use existing alternate logic
+                    if (motorAlternateFlag)
+                    {
+                        Motor2_On();
+                        if (GlobalSettings.motor2Cycles > 0)
+                        {
+                            motor2CycleCounter++;
+                            if (motor2CycleCounter >= GlobalSettings.motor2Cycles)
+                            {
+                                motorAlternateFlag = 0;
+                                motor2CycleCounter = 0;
+                            }
+                        }
+                        else
+                        {
+                            motorAlternateFlag = 0;
+                        }
+                    }
+                    else
+                    {
+                        Motor1_On();
+                        motorAlternateFlag = 1;
+                        motor2CycleCounter = 0;
+                    }
+                }
+                else if (!motor1InRest)
+                {
+                    Motor1_On();
+                    motorAlternateFlag = 1;
+                    motor2CycleCounter = 0;
+                }
+                else if (!motor2InRest)
                 {
                     Motor2_On();
                     if (GlobalSettings.motor2Cycles > 0)
@@ -2060,9 +2257,9 @@ void startSelectedMotor(void)
                 }
                 else
                 {
-                    Motor1_On();
-                    motorAlternateFlag = 1;
-                    motor2CycleCounter = 0;
+                    // Both resting — should not reach here normally
+                    state = MOTOR_OFF_RESET_DELAY;
+                    motorResetTicks = getTicks100ms();
                 }
             }
             break;
@@ -2310,11 +2507,11 @@ unsigned int checkMotorOnConditions(void)
             ret_val = 0;
         }
     }
-    if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState) == 0)
+    if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState, GlobalSettings.transformerType) == 0)
     {
         printf("\r\n Voltage Out of Range.");
         voltageFaultCount++;
-        if (voltageFaultCount > 20)
+        if (voltageFaultCount > 5)
         {
             ret_val = 0;
             state = MOTOR_OFF_VOLTAGE_FAULT;
@@ -2501,11 +2698,11 @@ unsigned int checkMotorOffConditions(void)
                 }
             }
         }
-        if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState) == 0)
+        if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState, GlobalSettings.transformerType) == 0)
         {
             printf("\r\n Voltage Out of Range.");
             voltageFaultCount++;
-            if (voltageFaultCount > 20)
+            if (voltageFaultCount > 5)
             {
                 ret_val = 1;
                 state = MOTOR_OFF_VOLTAGE_FAULT;
