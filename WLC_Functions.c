@@ -32,8 +32,9 @@ struct
     unsigned char motorMode;       // Choose between ACO, Sump Alternate, Sump Only, Bore Only, Combo (bore to sump and sump to tank)
     unsigned int motor2Cycles;     // if Motor1 runs for 1 cycle, how many times Motor2 should work
     unsigned char ctEnable;        // 0: Disable, 1: Enable
-    float referenceCurrent;
-    unsigned char transformerType;  // 0: 12-0-12 (center tap), 1: 12-0-12-0 (dual output)
+    float referenceCurrent1;
+    float referenceCurrent2;
+    unsigned char transformerType; // 0: 12-0-12 (center tap), 1: 12-0-12-0 (dual output)
     unsigned int state2;
 } GlobalSettings;
 
@@ -534,7 +535,7 @@ void updateSensorLED(void)
 
         if (GlobalSettings.ctEnable)
         {
-            float ref = GlobalSettings.referenceCurrent;
+            float ref = (motor_channel == 2) ? GlobalSettings.referenceCurrent2 : GlobalSettings.referenceCurrent1;
             if (ref > 0)
             {
                 float buffer = ref * 0.20f; // 20%
@@ -1220,7 +1221,15 @@ void configSettings(void)
     GlobalSettings.ctEnable = editParameter("CTE", GlobalSettings.ctEnable, 0, 1, 1, 1, DISP_ENA_DIS);
     if (GlobalSettings.ctEnable)
     {
-        GlobalSettings.referenceCurrent = editFloatParameter("AMP", GlobalSettings.referenceCurrent, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
+        if (GlobalSettings.dualMotorEnable)
+        {
+            GlobalSettings.referenceCurrent1 = editFloatParameter("AM1", GlobalSettings.referenceCurrent1, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
+            GlobalSettings.referenceCurrent2 = editFloatParameter("AM2", GlobalSettings.referenceCurrent2, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
+        }
+        else
+        {
+            GlobalSettings.referenceCurrent1 = editFloatParameter("AMP", GlobalSettings.referenceCurrent1, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
+        }
     }
 
     writeSettingEEPROM();
@@ -1254,7 +1263,8 @@ void readSettingsEEPROM(void)
         printf("\r\nMotor Mode: %d", (int)GlobalSettings.motorMode);
         printf("\r\nSumpType: %d", (int)GlobalSettings.sumpType);
         printf("\r\nCT Enable: %d", (int)GlobalSettings.ctEnable);
-        printf("\r\nCT Ref: %0.1f", GlobalSettings.referenceCurrent);
+        printf("\r\nCT Ref 1: %0.1f", GlobalSettings.referenceCurrent1);
+        printf("\r\nCT Ref 2: %0.1f", GlobalSettings.referenceCurrent2);
         printf("\r\nTransformer: %s", GlobalSettings.transformerType ? "12-0-12-0" : "12-0-12");
         printf("\r\nMode: ");
         if (GlobalSettings.workMode == WORKING_MODE_AUTO)
@@ -1304,7 +1314,8 @@ void readSettingsEEPROM(void)
         GlobalSettings.motorMode = 0; // ACO
         GlobalSettings.motor2Cycles = 0;
         GlobalSettings.ctEnable = 0;
-        GlobalSettings.referenceCurrent = 0.0f;
+        GlobalSettings.referenceCurrent1 = 0.0f;
+        GlobalSettings.referenceCurrent2 = 0.0f;
         GlobalSettings.transformerType = 0;      // Default: 12-0-12 center tap
 
         L_MODE_AUTO = 0;

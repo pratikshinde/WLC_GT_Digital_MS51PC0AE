@@ -167,15 +167,8 @@ float readMotorCurrent(uint8_t motor_channel)
 
     printf("\r\nCT Reading.");
 
-    // Config ADC Channel
-    if (motor_channel == 1)
-    {
-        ENABLE_ADC_CH9;
-    }
-    else
-    {
-        ENABLE_ADC_CH1;
-    }
+    // Single CT coil used for both motors - read from Channel 9 (P00/AIN9)
+    ENABLE_ADC_CH9;
 
     ADCCON1 |= 0X30; /* clock divider */
     ADCCON2 |= 0X0E; /* AQT time */

@@ -153,7 +153,8 @@ Accessible via the onboard UI (SET button):
 | **MOD** | Operational Mode | ACO, ACC, ALT, SUM, BOR, COB (0-5) |
 | **CYC** | Motor 2 Cycles | N:1 ratio for ALT mode |
 | **CTE** | CT Enable | Enable current sensing |
-| **AMP** | Reference Current | Motor rated current for CT |
+| **AM1** | Reference Current 1 | Motor 1 rated current |
+| **AM2** | Reference Current 2 | Motor 2 rated current |
 
 ---
 
