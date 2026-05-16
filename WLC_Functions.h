@@ -106,7 +106,8 @@ typedef enum {
     MOTOR_MODE_SAL,
     MOTOR_MODE_SUM,
     MOTOR_MODE_BOR,
-    MOTOR_MODE_COM
+    MOTOR_MODE_COM,
+    MOTOR_MODE_ACC
 } MOTOR_MODES;
 
 #endif
