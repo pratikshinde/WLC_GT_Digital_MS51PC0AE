@@ -531,7 +531,7 @@ void updateSensorLED(void)
             }
         }
 
-        currentRMS = readMotorCurrent(motor_channel);
+        currentRMS = readMotorCurrent();
 
         if (GlobalSettings.ctEnable)
         {

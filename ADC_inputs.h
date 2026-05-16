@@ -9,7 +9,7 @@
 #define SW3_ADC_MIN 2300
 #define SW3_ADC_MAX 2500
 unsigned int readButton(void);
-float readMotorCurrent(unsigned char motor_channel);
+float readMotorCurrent(void);
 unsigned int readACVoltage(void);
 void readVdd(void);
 void readBandgapCalibratedValue(void);

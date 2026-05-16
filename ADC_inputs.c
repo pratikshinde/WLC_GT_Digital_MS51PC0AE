@@ -155,7 +155,7 @@ void readVdd(void)
     VDD_Voltage = (0x1000 / bgvalue) * Bandgap_Voltage;
 }
 
-float readMotorCurrent(uint8_t motor_channel)
+float readMotorCurrent(void)
 {
     unsigned int temp;
     unsigned int max_val = 0;
