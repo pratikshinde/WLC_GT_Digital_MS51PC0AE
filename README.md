@@ -190,4 +190,8 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Combined SAL's N:1 cycle logic with ACO's automatic source switching.
     - Implemented "Motor 2 Sump Bypass": Motor 2 (Borewell) now operates without checking sump sensors, while Motor 1 (Sump) maintains strict level safety.
     - Added automatic in-cycle switching: If Motor 1 runs dry, the system seamlessly transitions to Motor 2 to complete the tank fill.
+- **Unified CT Coil Support**:
+    - Optimized hardware usage by supporting a single CT coil on ADC Channel 9 for both motors.
+    - Added independent reference current settings (`AM1` and `AM2`) to allow accurate monitoring of motors with different power ratings.
+    - Implemented automatic reference switching in the monitoring loop based on the active motor.
 
