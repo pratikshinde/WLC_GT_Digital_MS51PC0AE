@@ -83,6 +83,7 @@ unsigned char motor1InRest = 0, motor2InRest = 0;
 unsigned long motor1RestStartTicks = 0, motor2RestStartTicks = 0;
 
 unsigned long buzzerTank_ticks_100ms, buzzerSump_ticks_100ms, motorElapsedTicks, motorResetTicks, voltageFaultTicks;
+extern float lineVoltage;
 
 unsigned char switch_val = 0;
 unsigned char auto_press_count = 0;
@@ -2067,17 +2068,38 @@ static void StateHandler_MotorOffResetDelay(void)
 
 static void StateHandler_VoltageFault(void)
 {
-    printf("\r\nState:MOTOR_OFF_VOLTAGE_FAULT");
-    if ((getTicks100ms() - voltageFaultTicks) / 10 < VOLTAGE_RESET_TIME)
+    long remainingTime = (long)VOLTAGE_RESET_TIME - (long)((getTicks100ms() - voltageFaultTicks) / 10);
+    printf("\r\nState:MOTOR_OFF_VOLTAGE_FAULT. V:%0.1f", lineVoltage);
+
+    if (remainingTime > 0)
     {
-        printf("\r\nVoltage Fault:%ld", (long)VOLTAGE_RESET_TIME - (long)((getTicks100ms() - voltageFaultTicks) / 10));
+        printf("\r\nVoltage Fault Timer:%ld", remainingTime);
         flowLEDsMotorOff();
         Motor1_Off();
         Motor2_Off();
     }
     else
     {
-        state = MOTOR_OFF_SYSTEM_IDLE;
+        // Timer expired, now check hysteresis for recovery
+        if (lineVoltage < (GlobalSettings.minACVolt + VOLTAGE_HYSTERESIS))
+        {
+            printf("\r\nWaiting for Voltage Recovery (>%d V)", GlobalSettings.minACVolt + VOLTAGE_HYSTERESIS);
+            flowLEDsMotorOff();
+            Motor1_Off();
+            Motor2_Off();
+        }
+        else if (lineVoltage > GlobalSettings.maxACVolt)
+        {
+            printf("\r\nWaiting for Voltage to drop below %d V", GlobalSettings.maxACVolt);
+            flowLEDsMotorOff();
+            Motor1_Off();
+            Motor2_Off();
+        }
+        else
+        {
+            printf("\r\nVoltage Recovered. Transitioning to IDLE.");
+            state = MOTOR_OFF_SYSTEM_IDLE;
+        }
     }
 }
 

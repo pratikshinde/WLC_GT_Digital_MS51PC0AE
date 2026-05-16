@@ -23,6 +23,7 @@
 #define SETTINGS_STARTER_SELECTION       13
 
 #define VOLTAGE_RESET_TIME               45
+#define VOLTAGE_HYSTERESIS               30
 
 #define MODE_LED_AUTO_GREEN              0
 #define MODE_LED_MANUAL_RED              1

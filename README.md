@@ -176,6 +176,7 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **AC Voltage Optimization**: 
     - Reduced fault detection latency from 4 seconds to ~1 second for better hardware protection.
     - Improved sensing accuracy by implementing 20-sample averaging over a full 10ms (100Hz) ripple cycle, combined with an IIR low-pass filter (alpha = 0.7).
+    - **Voltage Recovery Hysteresis**: Implemented a 30V hysteresis for lower-limit recovery to prevent rapid "chatter" cycling. The system now requires the voltage to reach `minACVolt + 30V` before clearing a fault.
 - **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
 
 ### Logic Enhancements
