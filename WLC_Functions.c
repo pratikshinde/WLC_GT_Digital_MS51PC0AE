@@ -30,7 +30,8 @@ struct
     unsigned char workMode;
     unsigned char dualMotorEnable; // Enable dual sump motors
     unsigned char motorMode;       // Choose between ACO, Sump Alternate, Sump Only, Bore Only, Combo (bore to sump and sump to tank)
-    unsigned int motor2Cycles;     // if Motor1 runs for 1 cycle, how many times Motor2 should work
+    unsigned int motor1Cycles;     // ACC mode: how many times Motor1 runs per alternation
+    unsigned int motor2Cycles;     // ACC mode: how many times Motor2 runs per alternation
     unsigned char ctEnable;        // 0: Disable, 1: Enable
     float referenceCurrent1;
     float referenceCurrent2;
@@ -73,6 +74,7 @@ unsigned char motorAlternateFlag, motor1FaultFlag, motor2FaultFlag;
 
 float currentRMS = 0;
 unsigned char runningMotor = 0;
+unsigned int motor1CycleCounter = 0;
 unsigned int motor2CycleCounter = 0;
 unsigned char overCurrentFlag = 0;
 unsigned char underCurrentFlag = 0;
@@ -1217,7 +1219,11 @@ void configSettings(void)
         GlobalSettings.motorOnTime2 = editParameter("MO2", GlobalSettings.motorOnTime2, 0, 999, 1, 1, DISP_NUMERIC);
         GlobalSettings.motorOffTime2 = editParameter("MF2", GlobalSettings.motorOffTime2, 0, 999, 1, 1, DISP_NUMERIC);
         GlobalSettings.motorMode = editParameter("MOD", GlobalSettings.motorMode, 0, 5, 1, 1, DISP_MOTOR_MODE);
-        GlobalSettings.motor2Cycles = editParameter("CYC", GlobalSettings.motor2Cycles, 0, 999, 1, 1, DISP_NUMERIC);
+        if (GlobalSettings.motorMode == MOTOR_MODE_ACC)
+        {
+            GlobalSettings.motor1Cycles = editParameter("CY1", GlobalSettings.motor1Cycles, 0, 999, 1, 1, DISP_NUMERIC);
+            GlobalSettings.motor2Cycles = editParameter("CY2", GlobalSettings.motor2Cycles, 0, 999, 1, 1, DISP_NUMERIC);
+        }
     }
     GlobalSettings.ctEnable = editParameter("CTE", GlobalSettings.ctEnable, 0, 1, 1, 1, DISP_ENA_DIS);
     if (GlobalSettings.ctEnable)
@@ -1262,6 +1268,8 @@ void readSettingsEEPROM(void)
         printf("\r\nstarterSelection: %d", (int)GlobalSettings.starterSelection);
         printf("\r\nDualMotorEnable: %d", (int)GlobalSettings.dualMotorEnable);
         printf("\r\nMotor Mode: %d", (int)GlobalSettings.motorMode);
+        printf("\r\nMotor1 Cycles: %d", GlobalSettings.motor1Cycles);
+        printf("\r\nMotor2 Cycles: %d", GlobalSettings.motor2Cycles);
         printf("\r\nSumpType: %d", (int)GlobalSettings.sumpType);
         printf("\r\nCT Enable: %d", (int)GlobalSettings.ctEnable);
         printf("\r\nCT Ref 1: %0.1f", GlobalSettings.referenceCurrent1);
@@ -1313,6 +1321,7 @@ void readSettingsEEPROM(void)
         GlobalSettings.workMode = WORKING_MODE_AUTO; // default Auto
         GlobalSettings.dualMotorEnable = 0;
         GlobalSettings.motorMode = 0; // ACO
+        GlobalSettings.motor1Cycles = 0;
         GlobalSettings.motor2Cycles = 0;
         GlobalSettings.ctEnable = 0;
         GlobalSettings.referenceCurrent1 = 0.0f;
@@ -1376,7 +1385,7 @@ void updateMotorOffRemainingRemainingTime(long remainingTime)
 }
 int getRemainingOffTime(void)
 {
-    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_SAL || GlobalSettings.motorMode == MOTOR_MODE_ACC))
     {
         long rem1 = 999999, rem2 = 999999;
         if (motor1InRest)
@@ -1989,7 +1998,7 @@ static void StateHandler_MotorOff(void)
             Motor2_Off();
 
             // SAL Mode: Per-motor independent rest
-            if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL
+            if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_SAL || GlobalSettings.motorMode == MOTOR_MODE_ACC)
                 && currentOffTime && (motorOffBySensorFlag == 0))
             {
                 // Mark the stopped motor as resting
@@ -2044,7 +2053,7 @@ static void StateHandler_MotorOffResetDelay(void)
     printf("\r\nState:MOTOR_OFF_RESET_DELAY");
     flowLEDsMotorOff();
 
-    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_SAL || GlobalSettings.motorMode == MOTOR_MODE_ACC))
     {
         updateSALRestTimers();
         if (isSALMotorAvailable())
@@ -2159,7 +2168,7 @@ static void StateHandler_SensorError(void)
 void wlcLoop(void)
 {
     Handle_ButtonPresses();
-    if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_SAL)
+    if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_SAL || GlobalSettings.motorMode == MOTOR_MODE_ACC))
     {
         updateSALRestTimers();
     }
@@ -2226,8 +2235,7 @@ void startSelectedMotor(void)
             }
             break;
 
-        case MOTOR_MODE_SAL: // Sump Alternate
-            // Update rest timers first
+        case MOTOR_MODE_SAL: // Sump Alternate — simple 1:1 alternation, no cycles
             updateSALRestTimers();
 
             if (motor1FaultFlag && !motor2FaultFlag)
@@ -2242,67 +2250,40 @@ void startSelectedMotor(void)
             }
             else if (!motor1FaultFlag && !motor2FaultFlag)
             {
-                // Pick whichever motor is NOT resting; prefer alternate
                 if (!motor1InRest && !motor2InRest)
                 {
-                    // Both available — use existing alternate logic
+                    // Both available — simple 1:1 alternate
                     if (motorAlternateFlag)
                     {
                         Motor2_On();
-                        if (GlobalSettings.motor2Cycles > 0)
-                        {
-                            motor2CycleCounter++;
-                            if (motor2CycleCounter >= GlobalSettings.motor2Cycles)
-                            {
-                                motorAlternateFlag = 0;
-                                motor2CycleCounter = 0;
-                            }
-                        }
-                        else
-                        {
-                            motorAlternateFlag = 0;
-                        }
+                        motorAlternateFlag = 0;
                     }
                     else
                     {
                         Motor1_On();
                         motorAlternateFlag = 1;
-                        motor2CycleCounter = 0;
                     }
                 }
                 else if (!motor1InRest)
                 {
                     Motor1_On();
                     motorAlternateFlag = 1;
-                    motor2CycleCounter = 0;
                 }
                 else if (!motor2InRest)
                 {
                     Motor2_On();
-                    if (GlobalSettings.motor2Cycles > 0)
-                    {
-                        motor2CycleCounter++;
-                        if (motor2CycleCounter >= GlobalSettings.motor2Cycles)
-                        {
-                            motorAlternateFlag = 0;
-                            motor2CycleCounter = 0;
-                        }
-                    }
-                    else
-                    {
-                        motorAlternateFlag = 0;
-                    }
+                    motorAlternateFlag = 0;
                 }
                 else
                 {
-                    // Both resting — should not reach here normally
+                    // Both resting
                     state = MOTOR_OFF_RESET_DELAY;
                     motorResetTicks = getTicks100ms();
                 }
             }
             break;
 
-        case MOTOR_MODE_ACC: // Auto Change Over with Cycles
+        case MOTOR_MODE_ACC: // Auto Change Over with Cycles (motor1Cycles:motor2Cycles)
             updateSALRestTimers();
 
             if (motor1FaultFlag && !motor2FaultFlag)
@@ -2337,19 +2318,22 @@ void startSelectedMotor(void)
                             motor2CycleCounter++;
                             if (motor2CycleCounter >= GlobalSettings.motor2Cycles)
                             {
-                                motorAlternateFlag = 0;
+                                motorAlternateFlag = 0; // Switch back to Motor 1
                                 motor2CycleCounter = 0;
+                                motor1CycleCounter = 0;
                             }
                         }
                         else
                         {
-                            motorAlternateFlag = 0;
+                            motorAlternateFlag = 0; // No cycles set, alternate immediately
                         }
                     }
                     else if (!motor1InRest && sumpLevel > 25)
                     {
+                        // Motor 2 resting, changeover to Motor 1
                         Motor1_On();
-                        motorAlternateFlag = 1;
+                        motorAlternateFlag = 0;
+                        motor1CycleCounter = 0;
                         motor2CycleCounter = 0;
                     }
                 }
@@ -2358,14 +2342,27 @@ void startSelectedMotor(void)
                     if (!motor1InRest && sumpLevel > 25)
                     {
                         Motor1_On();
-                        motorAlternateFlag = 1;
-                        motor2CycleCounter = 0;
+                        if (GlobalSettings.motor1Cycles > 0)
+                        {
+                            motor1CycleCounter++;
+                            if (motor1CycleCounter >= GlobalSettings.motor1Cycles)
+                            {
+                                motorAlternateFlag = 1; // Switch to Motor 2
+                                motor1CycleCounter = 0;
+                                motor2CycleCounter = 0;
+                            }
+                        }
+                        else
+                        {
+                            motorAlternateFlag = 1; // No cycles set, alternate immediately
+                        }
                     }
                     else if (!motor2InRest)
                     {
-                        // M1 empty or resting - Change Over to Motor 2
+                        // Sump dry or M1 resting — Change Over to Motor 2 (borewell)
                         Motor2_On();
                         motorAlternateFlag = 1;
+                        motor1CycleCounter = 0;
                         motor2CycleCounter = 0;
                     }
                 }
@@ -2381,21 +2378,26 @@ void startSelectedMotor(void)
             break;
 
         case MOTOR_MODE_COM: // Combo Mode
+        {
+            unsigned char tankNeedsFilling = GlobalSettings.dualTankEnable
+                ? (GlobalSensorCount.stateT25 == 0 || GlobalSensorCount.stateT75 == 0)
+                : (tankLevel < GlobalSettings.tankOnLevel);
+
             if (sumpLevel < 25)
             {
                 Motor2_On(); // Fill Sump from Bore
             }
-            else if (sumpLevel >= 50 && tankLevel < 100)
+            else if (sumpLevel >= 50 && tankNeedsFilling)
             {
                 Motor1_On(); // Fill Tank from Sump
             }
             else
             {
-                // In COM mode, if we are between 25 and 50, and we need to start,
-                // it's likely we were filling the sump.
+                // Sump between 25-50, or tanks full → fill sump from bore
                 Motor2_On();
             }
-            break;
+        }
+        break;
 
         default:
             Motor1_On();
@@ -2552,30 +2554,48 @@ unsigned int checkMotorOnConditions(void)
         // COM Mode Special Triggers for dual tank
         if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
         {
-            if (!dualTankLow && sumpLevel < 100)
+            // Case 1: Sump empty → Bore to Sump
+            if (sumpLevel < 25)
             {
                 if (!motorState)
                 {
                     state = MOTOR_ON;
-                    printf("\r\nCOM DT: Tanks Full, Filling Sump");
+                    printf("\r\nCOM DT: Sump Empty -> Bore to Sump");
                     state_ticks_100ms = getTicks100ms();
                     motorOnInitFlag = 0;
                     ret_val = 1;
                 }
                 return ret_val;
             }
-            if (dualTankLow && sumpLevel < 25)
+            // Case 2: Sump >= 50 AND at least one tank empty → Sump to Tank
+            if (sumpLevel >= 50 && (GlobalSensorCount.stateT25 == 0 || GlobalSensorCount.stateT75 == 0))
             {
                 if (!motorState)
                 {
                     state = MOTOR_ON;
-                    printf("\r\nCOM DT: Tank Low, Sump Empty -> Start Bore");
+                    printf("\r\nCOM DT: Sump Ready -> Sump to Tank");
                     state_ticks_100ms = getTicks100ms();
                     motorOnInitFlag = 0;
                     ret_val = 1;
                 }
                 return ret_val;
             }
+            // Case 3: Both tanks full AND sump below 75 → Bore to Sump (maintenance)
+            if ((GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100) && sumpLevel < 75)
+            {
+                if (!motorState)
+                {
+                    state = MOTOR_ON;
+                    printf("\r\nCOM DT: Tanks Full, Sump Low -> Bore to Sump");
+                    state_ticks_100ms = getTicks100ms();
+                    motorOnInitFlag = 0;
+                    ret_val = 1;
+                }
+                return ret_val;
+            }
+            // No COM trigger matched → idle
+            state = MOTOR_OFF_SYSTEM_IDLE;
+            return ret_val;
         }
 
         // ACO/BOR/ACC: bypass sumpEmptyDetectFlag for dual tank
@@ -2763,7 +2783,40 @@ unsigned int checkMotorOffConditions(void)
         }
         else if (GlobalSettings.dualTankEnable)
         {
-            if (GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
+            if (GlobalSettings.motorMode == MOTOR_MODE_COM)
+            {
+                if (runningMotor == 1) // Sump to Tank
+                {
+                    if (GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
+                    {
+                        printf("\r\nCOM DT: Both Tanks Full - M1 Off");
+                        state_ticks_100ms = getTicks100ms();
+                        state = MOTOR_OFF;
+                        ret_val = 1;
+                        motorOffBySensorFlag = 1;
+                    }
+                }
+                else if (runningMotor == 2) // Bore to Sump
+                {
+                    if (sumpLevel >= 50 && (GlobalSensorCount.stateT25 == 0 || GlobalSensorCount.stateT75 == 0))
+                    {
+                        printf("\r\nCOM DT: Sump above 50%% and Tanks Empty - M2 Off");
+                        state_ticks_100ms = getTicks100ms();
+                        state = MOTOR_OFF;
+                        ret_val = 1;
+                        motorOffBySensorFlag = 1;
+                    }
+                    else if (sumpLevel == 100)
+                    {
+                        printf("\r\nCOM DT: Sump Full and Both Tanks Full - M2 Off");
+                        state_ticks_100ms = getTicks100ms();
+                        state = MOTOR_OFF;
+                        ret_val = 1;
+                        motorOffBySensorFlag = 1;
+                    }
+                }
+            }
+            else if (GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
             {
                 state = MOTOR_OFF;
                 ret_val = 1;

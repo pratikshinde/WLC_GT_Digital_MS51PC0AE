@@ -6,8 +6,8 @@ This project contains the firmware for a dual-motor and dual-source Water Level 
 - **Dual Motor Support**: Independent control of two motors (Sump Pump and Borewell Pump) via dedicated relays.
 - **Advanced Operation Modes**: Six distinct modes to handle various plumbing architectures:
     - **ACO (Auto Change Over)**: Primary Sump operation with automatic fallback to Borewell if the Sump is dry.
-    - **ACC (Auto Change Over with Cycles)**: Combines cycle-based alternation (SAL) with automatic source switching (ACO).
-    - **SAL (Sump Alternate)**: Alternates between two sources/motors. Supports N:1 cycle logic.
+    - **ACC (Auto Change Over with Cycles)**: Combines configurable cycle-based alternation with automatic source switching (ACO). Supports M1:M2 cycle ratio (e.g., 2:4).
+    - **SAL (Sump Alternate)**: Alternates between two sources/motors with simple 1:1 logic.
     - **SUM (Sump Mode)**: Dedicated single-source Sump-to-Tank operation.
     - **BOR (Borewell Mode)**: Dedicated single-source Borewell-to-Tank operation.
     - **COM (Combo Mode)**: Intelligent 3-stage logic (Borewell -> Sump -> Tank).
@@ -151,7 +151,8 @@ Accessible via the onboard UI (SET button):
 | **STA** | Starter Type | OLD (Mechanical) / ELE (Electronic) |
 | **DM** | Dual Motor Enable | ENA / DIS |
 | **MOD** | Operational Mode | ACO, ACC, ALT, SUM, BOR, COB (0-5) |
-| **CYC** | Motor 2 Cycles | N:1 ratio for ALT mode |
+| **CY1** | Motor 1 Cycles (ACC only) | Number of Motor 1 runs per alternation |
+| **CY2** | Motor 2 Cycles (ACC only) | Number of Motor 2 runs per alternation |
 | **CTE** | CT Enable | Enable current sensing |
 | **AM1** | Reference Current 1 | Motor 1 rated current |
 | **AM2** | Reference Current 2 | Motor 2 rated current |
@@ -188,9 +189,13 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Enhanced Failover**: Extended dry-run failover logic to support all dual-motor modes, ensuring the system can automatically switch pumps if the primary motor faults.
 - **Settings Transparency**: Fixed bit-width artifacts in debug logs (e.g., DualMotorEnable: 256) and added explicit Motor Mode reporting.
 - **New ACC Mode (Auto Change Over + Cycles)**: 
-    - Combined SAL's N:1 cycle logic with ACO's automatic source switching.
+    - Combined configurable M1:M2 cycle ratio with ACO's automatic source switching.
+    - User sets `CY1` and `CY2` to configure cycles (e.g., CY1=2, CY2=4 means Motor1 runs 2 times then Motor2 runs 4 times).
     - Implemented "Motor 2 Sump Bypass": Motor 2 (Borewell) now operates without checking sump sensors, while Motor 1 (Sump) maintains strict level safety.
     - Added automatic in-cycle switching: If Motor 1 runs dry, the system seamlessly transitions to Motor 2 to complete the tank fill.
+- **SAL Mode Simplified**: 
+    - SAL mode now uses simple 1:1 alternation without cycle configuration.
+    - Per-motor independent rest timers (MF1/MF2) are supported in both SAL and ACC modes.
 - **Unified CT Coil Support**:
     - Optimized hardware usage by supporting a single CT coil on ADC Channel 9 for both motors.
     - Added independent reference current settings (`AM1` and `AM2`) to allow accurate monitoring of motors with different power ratings.
