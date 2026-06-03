@@ -196,6 +196,12 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **SAL Mode Simplified**: 
     - SAL mode now uses simple 1:1 alternation without cycle configuration.
     - Per-motor independent rest timers (MF1/MF2) are supported in both SAL and ACC modes.
+- **Sump Indicator Relay (Single Motor / Single Sump)**:
+    - Repurposed the unused `O_RLY_2` relay in Single Motor (`dualMotorEnable == 0`) and Single Sump (`sumpType == 1`) configurations to serve as a sump low-level indicator.
+    - The relay turns ON (active-low, set to `0`) when `sumpLevel` falls below 50%, and turns OFF (set to `1`) when `sumpLevel` is 50% or above.
+    - Protected the repurposed `O_RLY_2` pin from being reset during calls to `Motor2_Off()`.
+- **Default Settings Adjustments**:
+    - Changed default `minACVolt` setting from 180V to 140V for wider voltage tolerance by default.
 - **Unified CT Coil Support**:
     - Optimized hardware usage by supporting a single CT coil on ADC Channel 9 for both motors.
     - Added independent reference current settings (`AM1` and `AM2`) to allow accurate monitoring of motors with different power ratings.

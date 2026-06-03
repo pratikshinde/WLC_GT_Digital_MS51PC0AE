@@ -756,6 +756,16 @@ void updateSensorLED(void)
             state = MOTOR_OFF_SENSOR_ERROR;
         }
     }
+
+    // Sump low-level relay: Single motor + Single sump only
+    // O_RLY_2 is unused by motor control in this config, repurpose as sump indicator
+    if (!GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 1)
+    {
+        if (sumpLevel < 50)
+            O_RLY_2 = 1; // Relay ON (active low) — sump low
+        else
+            O_RLY_2 = 0; // Relay OFF — sump OK
+    }
 }
 
 void flowLEDsMotorOff(void)
@@ -1311,7 +1321,7 @@ void readSettingsEEPROM(void)
         GlobalSettings.motorOffTime1 = 0;
         GlobalSettings.motorOnTime2 = 30;
         GlobalSettings.motorOffTime2 = 0;
-        GlobalSettings.minACVolt = 180;
+        GlobalSettings.minACVolt = 140;
         GlobalSettings.maxACVolt = 270;
         GlobalSettings.dualTankEnable = 0;
         GlobalSettings.sumpType = 1;
@@ -1584,7 +1594,12 @@ void Motor1_Off()
 
 void Motor2_Off()
 {
-    O_RLY_2 = 0;
+    // In single motor + single sump, O_RLY_2 is repurposed as sump level relay
+    // Only reset relay pins when actually used for motor control
+    if ((GlobalSettings.dualMotorEnable == 1) && (GlobalSettings.sumpType != 1))
+    {
+        O_RLY_2 = 0;
+    }
     O_RLY_3 = 0;
     motorState = 0;
     runningMotor = 0;

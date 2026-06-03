@@ -1,7 +1,7 @@
 #ifndef __WLC_functions__
 #define __WLC_functions__
 
-// #define ENABLE_SUMP_BUZZER								1
+//#define ENABLE_SUMP_BUZZER								1
 // #define ENABLE_TANK_BUZZER								1
 #define MOTOR_ON_DELAY                   10
 #define SETTINGS_ENABLE_DOUBLE_OH_TANK   1
