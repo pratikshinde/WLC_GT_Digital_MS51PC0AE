@@ -181,10 +181,11 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
 
 ### Logic Enhancements
-- **SAL Mode Independent Rest**: 
+- **SAL Mode Independent Rest & Failover**: 
     - Transitioned from a global system rest to independent per-motor rest tracking.
     - Fixed a critical bug where `motorOffBySensorFlag` was not resetting, which previously blocked rest timers from starting.
     - Added real-time second-by-second countdown logs for resting motors.
+    - **Sump-Empty Failover**: Resolved a bug in Sump Alternate (SAL) mode where the Borewell motor (Motor 2) would fail to start or switch over when the Sump was empty. Added SAL to the startup bypass whitelist and runtime switchover logic.
 - **Full Dual-Tank Support**: Restored missing operational paths for Dual-Tank mode, including automatic boot-starting, ACO/BOR mode bypass, and COM mode replenishment logic.
 - **Enhanced Failover**: Extended dry-run failover logic to support all dual-motor modes, ensuring the system can automatically switch pumps if the primary motor faults.
 - **Settings Transparency**: Fixed bit-width artifacts in debug logs (e.g., DualMotorEnable: 256) and added explicit Motor Mode reporting.

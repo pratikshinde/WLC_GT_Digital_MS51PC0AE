@@ -36,6 +36,7 @@ struct
     float referenceCurrent1;
     float referenceCurrent2;
     unsigned char transformerType; // 0: 12-0-12 (center tap), 1: 12-0-12-0 (dual output)
+    unsigned char voltageLimitEnable; // 0: Disable, 1: Enable
     unsigned int state2;
 } GlobalSettings;
 
@@ -110,6 +111,7 @@ void powerOnDelayCounter(void)
     readVdd();
     readACVoltage();
 }
+#ifndef MINIMUM_FUNCTIONALITY
 void displayDualSumpRolling(void)
 {
     if (displayTankFlag == 0)
@@ -139,11 +141,16 @@ void displayDualSumpRolling(void)
             TM1637_WriteNumber(2, 0);
     }
 }
+#endif
 
 void refreshCurrentDisplay(void)
 {
     unsigned char showAltDisplay = 0;
+#ifdef MINIMUM_FUNCTIONALITY
+    if (GlobalSettings.dualTankEnable == 1)
+#else
     if (GlobalSettings.sumpType == 2 || GlobalSettings.dualTankEnable == 1)
+#endif
     {
         showAltDisplay = (displayTankFlag == 4) ? 1 : ((displayTankFlag == 5) ? 2 : 0);
     }
@@ -156,6 +163,7 @@ void refreshCurrentDisplay(void)
     {
         if (showAltDisplay == 1) // Toggle between Tank and Reset display when in fault
         {
+#ifndef MINIMUM_FUNCTIONALITY
             if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
             {
                 if (motor1FaultFlag && motor2FaultFlag)
@@ -168,6 +176,7 @@ void refreshCurrentDisplay(void)
                     TM1637_WriteString(1, "RST");
             }
             else
+#endif
             {
                 TM1637_WriteString(1, "RST");
             }
@@ -176,6 +185,7 @@ void refreshCurrentDisplay(void)
         else
         {
             TM1637_WriteNumber(1, tankLevel);
+#ifndef MINIMUM_FUNCTIONALITY
             if (GlobalSettings.sumpType == 0)
             {
                 TM1637_WriteString(2, "BOR");
@@ -185,12 +195,15 @@ void refreshCurrentDisplay(void)
                 displayDualSumpRolling();
             }
             else
+#endif
             {
+#ifndef MINIMUM_FUNCTIONALITY
                 if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
                 {
                     TM1637_WriteString(2, "BOR");
                 }
                 else
+#endif
                 {
                     TM1637_WriteNumber(2, sumpLevel);
                 }
@@ -231,6 +244,7 @@ void refreshCurrentDisplay(void)
                     }
                     else if (showAltDisplay == 1)
                     {
+#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.dualMotorEnable)
                         {
                             if (GlobalSettings.motorMode == MOTOR_MODE_COM)
@@ -256,6 +270,7 @@ void refreshCurrentDisplay(void)
                             }
                         }
                         else
+#endif
                         {
                             // Clear top line if single motor to make it look clean if needed or show tank level
                             TM1637_WriteNumber(1, tankLevel);
@@ -264,6 +279,7 @@ void refreshCurrentDisplay(void)
                     }
                     else
                     {
+#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.sumpType == 0)
                         {
                             TM1637_WriteString(2, "BOR");
@@ -273,12 +289,15 @@ void refreshCurrentDisplay(void)
                             displayDualSumpRolling();
                         }
                         else
+#endif
                         {
+#ifndef MINIMUM_FUNCTIONALITY
                             if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
                             {
                                 TM1637_WriteString(2, "BOR");
                             }
                             else
+#endif
                             {
                                 TM1637_WriteNumber(2, sumpLevel);
                             }
@@ -299,6 +318,7 @@ void refreshCurrentDisplay(void)
                     }
                     else
                     {
+#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.sumpType == 0)
                         {
                             TM1637_WriteString(2, "BOR");
@@ -308,12 +328,15 @@ void refreshCurrentDisplay(void)
                             displayDualSumpRolling();
                         }
                         else
+#endif
                         {
+#ifndef MINIMUM_FUNCTIONALITY
                             if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
                             {
                                 TM1637_WriteString(2, "BOR");
                             }
                             else
+#endif
                             {
                                 TM1637_WriteNumber(2, sumpLevel);
                             }
@@ -353,6 +376,7 @@ void refreshCurrentDisplay(void)
                             TM1637_WriteNumber(1, 0);
                     }
 
+#ifndef MINIMUM_FUNCTIONALITY
                     if (GlobalSettings.sumpType == 0)
                     {
                         TM1637_WriteString(2, "BOR");
@@ -362,12 +386,15 @@ void refreshCurrentDisplay(void)
                         displayDualSumpRolling();
                     }
                     else
+#endif
                     {
+#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
                         {
                             TM1637_WriteString(2, "BOR");
                         }
                         else
+#endif
                         {
                             TM1637_WriteNumber(2, sumpLevel);
                         }
@@ -377,6 +404,7 @@ void refreshCurrentDisplay(void)
                 {
                     if (motorState)
                     {
+#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.dualMotorEnable)
                         {
                             if (GlobalSettings.motorMode == MOTOR_MODE_COM)
@@ -402,6 +430,7 @@ void refreshCurrentDisplay(void)
                             }
                         }
                         else
+#endif
                         {
                             TM1637_WriteString(1, "MOT");
                         }
@@ -436,7 +465,11 @@ void refreshCurrentDisplay(void)
 
 void handleDisplayRolling(void)
 {
+#ifdef MINIMUM_FUNCTIONALITY
+    if (GlobalSettings.dualTankEnable == 1)
+#else
     if (GlobalSettings.sumpType == 2 || GlobalSettings.dualTankEnable == 1)
+#endif
     {
         unsigned char max_flag = (GlobalSettings.ctEnable && motorState) ? 5 : 4;
         displayTankFlag++;
@@ -525,20 +558,25 @@ void updateSensorLED(void)
     {
         unsigned char motor_channel = 1; // Default to motor 1
 
-        // Check which motor is actually running via Relay States to pick correct ADC channel
-        if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
+#ifndef MINIMUM_FUNCTIONALITY
+        if (GlobalSettings.dualMotorEnable)
         {
             if (O_RLY_2 || O_RLY_3)
             {
                 motor_channel = 2;
             }
         }
+#endif
 
         currentRMS = readMotorCurrent();
 
         if (GlobalSettings.ctEnable)
         {
+#ifdef MINIMUM_FUNCTIONALITY
+            float ref = GlobalSettings.referenceCurrent1;
+#else
             float ref = (motor_channel == 2) ? GlobalSettings.referenceCurrent2 : GlobalSettings.referenceCurrent1;
+#endif
             if (ref > 0)
             {
                 float buffer = ref * 0.20f; // 20%
@@ -671,6 +709,7 @@ void updateSensorLED(void)
         }
     }
 
+#ifndef MINIMUM_FUNCTIONALITY
     if (GlobalSettings.sumpType == 0)
     {
         sumpLevel = 50;
@@ -698,6 +737,7 @@ void updateSensorLED(void)
             sumpLevel = 0;
         }
     }
+#endif
 
 #ifdef ENABLE_SUMP_BUZZER
     if (prevSumpLevel != sumpLevel)
@@ -1214,15 +1254,22 @@ void configSettings(void)
     min_tank_off = GlobalSettings.tankOnLevel + 25;
     GlobalSettings.tankOffLevel = editParameter("TOF", GlobalSettings.tankOffLevel, min_tank_off, 100, 25, 25, DISP_NUMERIC);
     GlobalSettings.dualTankEnable = editParameter("DTK", GlobalSettings.dualTankEnable, 0, 1, 1, 1, DISP_ENA_DIS);
+#ifndef MINIMUM_FUNCTIONALITY
     GlobalSettings.sumpType = editParameter("SUM", GlobalSettings.sumpType, 0, 2, 1, 1, DISP_SUMP_MODE);
+#endif
     GlobalSettings.motorOnTime1 = editParameter("MO1", GlobalSettings.motorOnTime1, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.motorOffTime1 = editParameter("MF1", GlobalSettings.motorOffTime1, 0, 999, 1, 1, DISP_NUMERIC);
-    GlobalSettings.minACVolt = editParameter("VOL", GlobalSettings.minACVolt, 110, 180, 1, 1, DISP_NUMERIC);
-    GlobalSettings.maxACVolt = editParameter("VOH", GlobalSettings.maxACVolt, 270, 300, 1, 1, DISP_NUMERIC);
+    GlobalSettings.voltageLimitEnable = editParameter("VLT", GlobalSettings.voltageLimitEnable, 0, 1, 1, 1, DISP_ENA_DIS);
+    if (GlobalSettings.voltageLimitEnable == 1)
+    {
+        GlobalSettings.minACVolt = editParameter("VOL", GlobalSettings.minACVolt, 110, 180, 1, 1, DISP_NUMERIC);
+        GlobalSettings.maxACVolt = editParameter("VOH", GlobalSettings.maxACVolt, 270, 300, 1, 1, DISP_NUMERIC);
+    }
     GlobalSettings.transformerType = editParameter("TRF", GlobalSettings.transformerType, 0, 1, 1, 1, DISP_TRAFO);
     GlobalSettings.offTimeTankOffLevel = editParameter("OFF", GlobalSettings.offTimeTankOffLevel, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.relayPulse = editParameter("RPL", GlobalSettings.relayPulse, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.starterSelection = editParameter("STA", GlobalSettings.starterSelection, 0, 1, 1, 1, DISP_OLD_ELE);
+#ifndef MINIMUM_FUNCTIONALITY
     GlobalSettings.dualMotorEnable = editParameter("DM", GlobalSettings.dualMotorEnable, 0, 1, 1, 1, DISP_ENA_DIS);
     if (GlobalSettings.dualMotorEnable == 1)
     {
@@ -1235,15 +1282,18 @@ void configSettings(void)
             GlobalSettings.motor2Cycles = editParameter("CY2", GlobalSettings.motor2Cycles, 0, 999, 1, 1, DISP_NUMERIC);
         }
     }
+#endif
     GlobalSettings.ctEnable = editParameter("CTE", GlobalSettings.ctEnable, 0, 1, 1, 1, DISP_ENA_DIS);
     if (GlobalSettings.ctEnable)
     {
+#ifndef MINIMUM_FUNCTIONALITY
         if (GlobalSettings.dualMotorEnable)
         {
             GlobalSettings.referenceCurrent1 = editFloatParameter("AM1", GlobalSettings.referenceCurrent1, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
             GlobalSettings.referenceCurrent2 = editFloatParameter("AM2", GlobalSettings.referenceCurrent2, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
         }
         else
+#endif
         {
             GlobalSettings.referenceCurrent1 = editFloatParameter("AMP", GlobalSettings.referenceCurrent1, 0.0f, 30.0f, 0.1f, 0.1f, DISP_AMP);
         }
@@ -1285,6 +1335,15 @@ void readSettingsEEPROM(void)
         printf("\r\nCT Ref 1: %0.1f", GlobalSettings.referenceCurrent1);
         printf("\r\nCT Ref 2: %0.1f", GlobalSettings.referenceCurrent2);
         printf("\r\nTransformer: %s", GlobalSettings.transformerType ? "12-0-12-0" : "12-0-12");
+        if (GlobalSettings.voltageLimitEnable > 1)
+        {
+            GlobalSettings.voltageLimitEnable = 1; // Default to Enable if uninitialized in EEPROM
+        }
+        printf("\r\nVoltLimitEnable: %d", (int)GlobalSettings.voltageLimitEnable);
+#ifdef MINIMUM_FUNCTIONALITY
+        GlobalSettings.dualMotorEnable = 0;
+        GlobalSettings.sumpType = 1;
+#endif
         printf("\r\nMode: ");
         if (GlobalSettings.workMode == WORKING_MODE_AUTO)
         {
@@ -1337,6 +1396,12 @@ void readSettingsEEPROM(void)
         GlobalSettings.referenceCurrent1 = 0.0f;
         GlobalSettings.referenceCurrent2 = 0.0f;
         GlobalSettings.transformerType = 0;      // Default: 12-0-12 center tap
+        GlobalSettings.voltageLimitEnable = 0;   // Default: Volt Limit Enabled
+
+#ifdef MINIMUM_FUNCTIONALITY
+        GlobalSettings.dualMotorEnable = 0;
+        GlobalSettings.sumpType = 1;
+#endif
 
         L_MODE_AUTO = 0;
         printf("\r\nDefault..");
@@ -1509,6 +1574,10 @@ void Motor1_On()
     motorElapsedTicks = getTicks100ms();
 }
 
+#ifdef MINIMUM_FUNCTIONALITY
+void Motor2_On() {}
+void Motor2_Off() {}
+#else
 void Motor2_On()
 {
     unsigned long motor_ticks_100ms = getTicks100ms();
@@ -1582,21 +1651,11 @@ void Motor2_On()
     motorElapsedTicks = getTicks100ms();
 }
 
-void Motor1_Off()
-{
-    O_RLY_0 = 0;
-    O_RLY_1 = 0;
-    motorState = 0;
-    runningMotor = 0;
-    L_MOT1_ON = 0;
-    motorResetTicks = getTicks100ms();
-}
-
 void Motor2_Off()
 {
     // In single motor + single sump, O_RLY_2 is repurposed as sump level relay
     // Only reset relay pins when actually used for motor control
-    if ((GlobalSettings.dualMotorEnable == 1) && (GlobalSettings.sumpType != 1))
+    if (GlobalSettings.dualMotorEnable == 1)
     {
         O_RLY_2 = 0;
     }
@@ -1605,6 +1664,17 @@ void Motor2_Off()
     runningMotor = 0;
     L_MOT1_ON = 0;
     // L_MOT2_ON = 0; // Not used/mapped
+    motorResetTicks = getTicks100ms();
+}
+#endif
+
+void Motor1_Off()
+{
+    O_RLY_0 = 0;
+    O_RLY_1 = 0;
+    motorState = 0;
+    runningMotor = 0;
+    L_MOT1_ON = 0;
     motorResetTicks = getTicks100ms();
 }
 
@@ -2235,6 +2305,9 @@ void wlcLoop(void)
 
 void startSelectedMotor(void)
 {
+#ifdef MINIMUM_FUNCTIONALITY
+    Motor1_On();
+#else
     if (GlobalSettings.dualMotorEnable)
     {
         switch (GlobalSettings.motorMode)
@@ -2260,40 +2333,46 @@ void startSelectedMotor(void)
             }
             else if (motor2FaultFlag && !motor1FaultFlag)
             {
-                if (!motor1InRest) Motor1_On();
+                if (!motor1InRest && sumpLevel > 25) Motor1_On();
                 else { state = MOTOR_OFF_RESET_DELAY; motorResetTicks = getTicks100ms(); }
             }
             else if (!motor1FaultFlag && !motor2FaultFlag)
             {
-                if (!motor1InRest && !motor2InRest)
+                if (motorAlternateFlag) // Motor 2's turn
                 {
-                    // Both available — simple 1:1 alternate
-                    if (motorAlternateFlag)
+                    if (!motor2InRest)
+                    {
+                        Motor2_On();
+                        motorAlternateFlag = 0;
+                    }
+                    else if (!motor1InRest && sumpLevel > 25)
+                    {
+                        Motor1_On();
+                        motorAlternateFlag = 1;
+                    }
+                    else
+                    {
+                        state = MOTOR_OFF_RESET_DELAY;
+                        motorResetTicks = getTicks100ms();
+                    }
+                }
+                else // Motor 1's turn
+                {
+                    if (!motor1InRest && sumpLevel > 25)
+                    {
+                        Motor1_On();
+                        motorAlternateFlag = 1;
+                    }
+                    else if (!motor2InRest)
                     {
                         Motor2_On();
                         motorAlternateFlag = 0;
                     }
                     else
                     {
-                        Motor1_On();
-                        motorAlternateFlag = 1;
+                        state = MOTOR_OFF_RESET_DELAY;
+                        motorResetTicks = getTicks100ms();
                     }
-                }
-                else if (!motor1InRest)
-                {
-                    Motor1_On();
-                    motorAlternateFlag = 1;
-                }
-                else if (!motor2InRest)
-                {
-                    Motor2_On();
-                    motorAlternateFlag = 0;
-                }
-                else
-                {
-                    // Both resting
-                    state = MOTOR_OFF_RESET_DELAY;
-                    motorResetTicks = getTicks100ms();
                 }
             }
             break;
@@ -2423,6 +2502,7 @@ void startSelectedMotor(void)
     {
         Motor1_On();
     }
+#endif
 }
 
 unsigned int checkMotorOnConditions(void)
@@ -2434,7 +2514,11 @@ unsigned int checkMotorOnConditions(void)
         if (state == BOOT_START)
         {
             printf("\r\nBoot Motor Start1");
+#ifdef MINIMUM_FUNCTIONALITY
+            if ((tankLevel < 100) && sumpLevel)
+#else
             if ((tankLevel < 100) && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR))))
+#endif
             {
                 if (!motorState)
                 {
@@ -2452,6 +2536,7 @@ unsigned int checkMotorOnConditions(void)
             return ret_val;
         }
 
+#ifndef MINIMUM_FUNCTIONALITY
         // COM Mode Special Triggers
         if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
         {
@@ -2483,7 +2568,7 @@ unsigned int checkMotorOnConditions(void)
             }
         }
         // ACO/BOR/ACC: bypass sumpEmptyDetectFlag — borewell doesn't need sump recovery
-        if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_ACC) && (tankLevel < GlobalSettings.tankOnLevel))
+        if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_ACC || GlobalSettings.motorMode == MOTOR_MODE_SAL) && (tankLevel < GlobalSettings.tankOnLevel))
         {
             if (!motorState)
             {
@@ -2495,7 +2580,9 @@ unsigned int checkMotorOnConditions(void)
                 sumpEmptyDetectFlag = 0;
             }
         }
-        else if ((tankLevel < GlobalSettings.tankOnLevel) && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
+        else
+#endif
+        if ((tankLevel < GlobalSettings.tankOnLevel) && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
         {
             if (!motorState)
             {
@@ -2535,7 +2622,9 @@ unsigned int checkMotorOnConditions(void)
         else
         {
             Motor1_Off();
+#ifndef MINIMUM_FUNCTIONALITY
             Motor2_Off();
+#endif
             state = MOTOR_OFF_SYSTEM_IDLE;
             ret_val = 0;
         }
@@ -2548,7 +2637,11 @@ unsigned int checkMotorOnConditions(void)
         if (state == BOOT_START)
         {
             printf("\r\nBoot Motor Start DualTank");
+#ifdef MINIMUM_FUNCTIONALITY
+            if (dualTankLow && sumpLevel)
+#else
             if (dualTankLow && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR))))
+#endif
             {
                 if (!motorState)
                 {
@@ -2566,6 +2659,7 @@ unsigned int checkMotorOnConditions(void)
             return ret_val;
         }
 
+#ifndef MINIMUM_FUNCTIONALITY
         // COM Mode Special Triggers for dual tank
         if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
         {
@@ -2614,7 +2708,7 @@ unsigned int checkMotorOnConditions(void)
         }
 
         // ACO/BOR/ACC: bypass sumpEmptyDetectFlag for dual tank
-        if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_ACC) && dualTankLow)
+        if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_ACC || GlobalSettings.motorMode == MOTOR_MODE_SAL) && dualTankLow)
         {
             if (!motorState)
             {
@@ -2626,7 +2720,9 @@ unsigned int checkMotorOnConditions(void)
                 sumpEmptyDetectFlag = 0;
             }
         }
-        else if (dualTankLow && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
+        else
+#endif
+        if (dualTankLow && (sumpLevel >= 50) && (sumpEmptyDetectFlag) && (GlobalSensorCount.stateS100 + GlobalSensorCount.stateS75 + GlobalSensorCount.stateS50 + GlobalSensorCount.stateS25 > 1))
         {
             printf("\r\nMotor start");
             state = MOTOR_ON;
@@ -2645,25 +2741,31 @@ unsigned int checkMotorOnConditions(void)
         else
         {
             Motor1_Off();
+#ifndef MINIMUM_FUNCTIONALITY
             Motor2_Off();
+#endif
             state = MOTOR_OFF_SYSTEM_IDLE;
             ret_val = 0;
         }
     }
-    if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState, GlobalSettings.transformerType) == 0)
     {
-        printf("\r\n Voltage Out of Range.");
-        voltageFaultCount++;
-        if (voltageFaultCount > 5)
+        unsigned int minV = (GlobalSettings.voltageLimitEnable == 1) ? GlobalSettings.minACVolt : 145;
+        unsigned int maxV = (GlobalSettings.voltageLimitEnable == 1) ? GlobalSettings.maxACVolt : 275;
+        if (checkLineVoltage(minV, maxV, motorState, GlobalSettings.transformerType) == 0)
         {
-            ret_val = 0;
-            state = MOTOR_OFF_VOLTAGE_FAULT;
-            voltageFaultTicks = getTicks100ms();
+            printf("\r\n Voltage Out of Range.");
+            voltageFaultCount++;
+            if (voltageFaultCount > 5)
+            {
+                ret_val = 0;
+                state = MOTOR_OFF_VOLTAGE_FAULT;
+                voltageFaultTicks = getTicks100ms();
+            }
         }
-    }
-    else
-    {
-        voltageFaultCount = 0;
+        else
+        {
+            voltageFaultCount = 0;
+        }
     }
     return ret_val;
 }
@@ -2704,6 +2806,7 @@ unsigned int checkMotorOffConditions(void)
     {
         motorRunTimeMinutes = ((getTicks100ms() - motorElapsedTicks) / 600);
 
+#ifndef MINIMUM_FUNCTIONALITY
         if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
         {
             if ((O_RLY_0 || O_RLY_1) && !GlobalSensorCount.stateS25 && !GlobalSensorCount.stateS50)
@@ -2711,7 +2814,9 @@ unsigned int checkMotorOffConditions(void)
             else if ((O_RLY_2 || O_RLY_3) && !GlobalSensorCount.stateS75 && !GlobalSensorCount.stateS100)
                 sourceEmpty = 1;
         }
-        else if (sumpLevel < 25 && runningMotor == 1)
+        else
+#endif
+        if (sumpLevel < 25 && runningMotor == 1)
         {
             sourceEmpty = 1;
         }
@@ -2719,16 +2824,21 @@ unsigned int checkMotorOffConditions(void)
         {
             printf("\r\nMotor %d Running. Mode: %s. Sump: %d Tank: %d",
                    (int)runningMotor,
+#ifdef MINIMUM_FUNCTIONALITY
+                   "SUM",
+#else
                    (GlobalSettings.motorMode == 0 ? "ACO" : GlobalSettings.motorMode == 1 ? "ALT"
                                                         : GlobalSettings.motorMode == 2   ? "SUM"
                                                         : GlobalSettings.motorMode == 3   ? "BOR"
                                                         : GlobalSettings.motorMode == 5   ? "ACC"
                                                                                           : "COB"),
+#endif
                    sumpLevel, tankLevel);
             if (sourceEmpty)
             {
+#ifndef MINIMUM_FUNCTIONALITY
                 // ACO/ACC: Switch to Borewell with delay
-                if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_ACC) && runningMotor == 1)
+                if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_ACC || GlobalSettings.motorMode == MOTOR_MODE_SAL) && runningMotor == 1)
                 {
                     printf("\r\nACO: Sump Empty, switching to Borewell");
                     Motor1_Off();
@@ -2737,13 +2847,16 @@ unsigned int checkMotorOffConditions(void)
                     state = MOTOR_ON; // Will start Motor 2 after delay
                 }
                 else
+#endif
                 {
                     printf("\r\nSource empty - Motor off");
                     state_ticks_100ms = getTicks100ms();
                     if (state == MOTOR_ON_PRIMARY_DRY_RUN_CHECK)
                     {
                         Motor1_Off();
+#ifndef MINIMUM_FUNCTIONALITY
                         Motor2_Off();
+#endif
                         state = MOTOR_OFF_SYSTEM_IDLE;
                     }
                     else
@@ -2753,6 +2866,7 @@ unsigned int checkMotorOffConditions(void)
                     ret_val = 1;
                 }
             }
+#ifndef MINIMUM_FUNCTIONALITY
             if (GlobalSettings.motorMode == MOTOR_MODE_COM)
             {
                 if (runningMotor == 1) // Sump to Tank
@@ -2786,7 +2900,9 @@ unsigned int checkMotorOffConditions(void)
                     }
                 }
             }
-            else if (tankLevel >= GlobalSettings.tankOffLevel)
+            else
+#endif
+            if (tankLevel >= GlobalSettings.tankOffLevel)
             {
                 // Motor1_Off();
                 printf("\r\nMotor off");
@@ -2798,6 +2914,7 @@ unsigned int checkMotorOffConditions(void)
         }
         else if (GlobalSettings.dualTankEnable)
         {
+#ifndef MINIMUM_FUNCTIONALITY
             if (GlobalSettings.motorMode == MOTOR_MODE_COM)
             {
                 if (runningMotor == 1) // Sump to Tank
@@ -2831,7 +2948,9 @@ unsigned int checkMotorOffConditions(void)
                     }
                 }
             }
-            else if (GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
+            else
+#endif
+            if (GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
             {
                 state = MOTOR_OFF;
                 ret_val = 1;
@@ -2839,21 +2958,33 @@ unsigned int checkMotorOffConditions(void)
             }
             if (sourceEmpty)
             {
-                // Motor1_Off();
-                printf("\r\nMotor off");
-                state_ticks_100ms = getTicks100ms();
-                if (state == MOTOR_ON_PRIMARY_DRY_RUN_CHECK)
+                if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_ACC || GlobalSettings.motorMode == MOTOR_MODE_SAL) && runningMotor == 1)
                 {
+                    printf("\r\nACO DT: Sump Empty, switching to Borewell");
                     Motor1_Off();
-                    Motor2_Off();
-                    state = MOTOR_OFF_SYSTEM_IDLE;
+                    state_ticks_100ms = getTicks100ms();
+                    motorOnInitFlag = 0;
+                    state = MOTOR_ON; // Will start Motor 2 after delay
                 }
                 else
                 {
-                    state = MOTOR_OFF;
+                    // Motor1_Off();
+                    printf("\r\nMotor off");
+                    state_ticks_100ms = getTicks100ms();
+                    if (state == MOTOR_ON_PRIMARY_DRY_RUN_CHECK)
+                    {
+                        Motor1_Off();
+#ifndef MINIMUM_FUNCTIONALITY
+                        Motor2_Off();
+#endif
+                        state = MOTOR_OFF_SYSTEM_IDLE;
+                    }
+                    else
+                    {
+                        state = MOTOR_OFF;
+                    }
+                    ret_val = 1;
                 }
-
-                ret_val = 1;
             }
         }
 
@@ -2875,20 +3006,24 @@ unsigned int checkMotorOffConditions(void)
                 }
             }
         }
-        if (checkLineVoltage(GlobalSettings.minACVolt, GlobalSettings.maxACVolt, motorState, GlobalSettings.transformerType) == 0)
         {
-            printf("\r\n Voltage Out of Range.");
-            voltageFaultCount++;
-            if (voltageFaultCount > 5)
+            unsigned int minV = (GlobalSettings.voltageLimitEnable == 1) ? GlobalSettings.minACVolt : 145;
+            unsigned int maxV = (GlobalSettings.voltageLimitEnable == 1) ? GlobalSettings.maxACVolt : 275;
+            if (checkLineVoltage(minV, maxV, motorState, GlobalSettings.transformerType) == 0)
             {
-                ret_val = 1;
-                state = MOTOR_OFF_VOLTAGE_FAULT;
-                voltageFaultTicks = getTicks100ms();
+                printf("\r\n Voltage Out of Range.");
+                voltageFaultCount++;
+                if (voltageFaultCount > 5)
+                {
+                    ret_val = 1;
+                    state = MOTOR_OFF_VOLTAGE_FAULT;
+                    voltageFaultTicks = getTicks100ms();
+                }
             }
-        }
-        else
-        {
-            voltageFaultCount = 0;
+            else
+            {
+                voltageFaultCount = 0;
+            }
         }
 
         if (overCurrentFlag)
