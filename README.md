@@ -181,6 +181,7 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
 - **EEPROM Relocation**: Relocated parameter storage blocks to the end pages of the 32KB flash (`0x7F00` and `0x7F80`) to expand compiled code boundaries up to `0x7EFF`, allowing full serial UART debug prints to fit cleanly.
 - **Motor 2 Start Loop Fix (Combo Mode)**: Guarded start conditions with `!motor2FaultFlag` and disabled `sourceEmpty` checks for Motor 2 in dual-sump configurations when running in COB/ACO/BOR modes. This ensures dry-run faults reliably trigger the cooldown countdown rather than immediately restarting the motor.
+- **Differentiated Dry Run Displays**: Updated the 7-segment display logic to show `RS1` or `RS2` depending on which motor (Motor 1 or Motor 2) triggered the dry-run fault, showing `RST` if both motors run dry.
 
 ### Logic Enhancements
 - **SAL Mode Independent Rest & Failover**: 

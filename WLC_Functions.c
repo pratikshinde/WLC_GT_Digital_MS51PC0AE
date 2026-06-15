@@ -164,22 +164,36 @@ void refreshCurrentDisplay(void)
     {
         if (showAltDisplay == 1) // Toggle between Tank and Reset display when in fault
         {
-#ifndef MINIMUM_FUNCTIONALITY
-            if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
+            if (state == MOTOR_OFF_DRY_RUN_FAULT)
             {
                 if (motor1FaultFlag && motor2FaultFlag)
-                    TM1637_WriteString(1, "ALF"); // All Fault
-                else if (motor2FaultFlag)         // If motor 2 faulted
-                    TM1637_WriteString(1, "M2F");
-                else if (motor1FaultFlag) // If motor 1 faulted
-                    TM1637_WriteString(1, "M1F");
+                    TM1637_WriteString(1, "RST");
+                else if (motor1FaultFlag)
+                    TM1637_WriteString(1, "RS1");
+                else if (motor2FaultFlag)
+                    TM1637_WriteString(1, "RS2");
                 else
                     TM1637_WriteString(1, "RST");
             }
-            else
-#endif
+            else // MOTOR_OFF_OVERCURRENT_FAULT
             {
-                TM1637_WriteString(1, "RST");
+#ifndef MINIMUM_FUNCTIONALITY
+                if (GlobalSettings.dualMotorEnable && GlobalSettings.sumpType == 2)
+                {
+                    if (motor1FaultFlag && motor2FaultFlag)
+                        TM1637_WriteString(1, "ALF"); // All Fault
+                    else if (motor2FaultFlag)         // If motor 2 faulted
+                        TM1637_WriteString(1, "M2F");
+                    else if (motor1FaultFlag) // If motor 1 faulted
+                        TM1637_WriteString(1, "M1F");
+                    else
+                        TM1637_WriteString(1, "RST");
+                }
+                else
+#endif
+                {
+                    TM1637_WriteString(1, "RST");
+                }
             }
             TM1637_WriteNumber(2, resetMinutes);
         }
