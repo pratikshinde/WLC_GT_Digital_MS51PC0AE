@@ -87,6 +87,8 @@ unsigned char motor1InRest = 0, motor2InRest = 0;
 unsigned long motor1RestStartTicks = 0, motor2RestStartTicks = 0;
 
 unsigned long buzzerTank_ticks_100ms, buzzerSump_ticks_100ms, motorElapsedTicks, motorResetTicks, voltageFaultTicks;
+static unsigned char dryRunBuzzerActive = 0;
+static unsigned long dryRunBuzzerStartTicks = 0;
 extern float lineVoltage;
 
 unsigned char switch_val = 0;
@@ -1698,6 +1700,12 @@ static void Handle_ButtonPresses(void)
 {
     printf("\r\nReading Button");
     switch_val = readButton();
+    if (switch_val != 0 && dryRunBuzzerActive)
+    {
+        dryRunBuzzerActive = 0;
+        BUZZ = 0;
+        printf("\r\nDry Run Buzzer Muted by Button");
+    }
     if (sumpLevel < 25)
     {
         sumpEmptyDetectFlag = 1;
@@ -1934,6 +1942,9 @@ static void StateHandler_DryRunFault(void)
             ;
         Motor1_Off();
         Motor2_Off();
+        
+        dryRunBuzzerActive = 1;
+        dryRunBuzzerStartTicks = getTicks100ms();
     }
     else
     {
@@ -3147,6 +3158,21 @@ unsigned int checkMotorOffConditions(void)
 }
 void buzzerLoop(void)
 {
+    if (dryRunBuzzerActive)
+    {
+        if (((getTicks100ms() - dryRunBuzzerStartTicks) / 10) < 120) // 120 seconds = 2 minutes
+        {
+            BUZZ = !BUZZ;
+            printf("\r\nDry Run Buzzer Timeout:%ld", 120 - (getTicks100ms() - dryRunBuzzerStartTicks) / 10);
+            return;
+        }
+        else
+        {
+            dryRunBuzzerActive = 0;
+            BUZZ = 0;
+        }
+    }
+
 #ifdef ENABLE_TANK_BUZZER
     if (tankEmptyDetectFlag)
     {
