@@ -79,6 +79,7 @@ void TM1637_init(const uint8_t enable, const uint8_t brightness)
     TM1637_clear();
 }
 
+#if 0
 void TM1637_enable(const uint8_t value)
 {
     TM1637_send_config(value, _config & TM1637_BRIGHTNESS_MAX);
@@ -88,6 +89,7 @@ void TM1637_set_brightness(const uint8_t value)
 {
     TM1637_send_config(_config & TM1637_SET_DISPLAY_ON, value & TM1637_BRIGHTNESS_MAX);
 }
+#endif
 
 void TM1637_display_segments(const uint8_t position, const uint8_t segments)
 {
@@ -98,6 +100,7 @@ void TM1637_display_segments(const uint8_t position, const uint8_t segments)
     TM1637_stop();
 }
 
+#if 0
 void TM1637_display_digit(const uint8_t position, const uint8_t digit)
 {
     uint8_t segments = (digit < 10 ? (_digit2segments[digit]) : 0x00);
@@ -108,6 +111,7 @@ void TM1637_display_digit(const uint8_t position, const uint8_t digit)
     }*/
     TM1637_display_segments(position, segments);
 }
+#endif
 
 void TM1637_clear(void)
 {
@@ -156,6 +160,7 @@ void TM1637_stop(void)
 
     TM1637_DIO_HIGH();
 }
+#if 0
 void TM1637_Continous_DataTest()
 {
     uint8_t n = 0, j = 0;
@@ -179,22 +184,61 @@ void TM1637_Continous_DataTest()
         _delay_ms(500);
     }
 }
+#endif
 void TM1637_WriteString(uint8_t lineNumber, char *str)
 {
     uint8_t i;
+    uint8_t nullReached = 0;
     for (i = 0; i < 3; i++)
     {
+        uint8_t seg = 0x00;
+        if (!nullReached)
+        {
+            if (str[i] == '\0')
+            {
+                nullReached = 1;
+            }
+            else
+            {
+                char c = str[i];
+                if (c >= '0' && c <= '9')
+                {
+                    seg = _digit2segments[c - '0'];
+                }
+                else if (c >= 'A' && c <= 'Z')
+                {
+                    seg = _char2segments[c - 'A'];
+                }
+                else if (c >= 'a' && c <= 'z')
+                {
+                    seg = _char2segments[c - 'a'];
+                }
+                else if (c == '-')
+                {
+                    seg = 0x40; // G segment (dash)
+                }
+                else if (c == '_')
+                {
+                    seg = 0x08; // D segment (underscore)
+                }
+                else
+                {
+                    seg = 0x00; // blank/unknown
+                }
+            }
+        }
+
         if (lineNumber == 1)
         {
-            _digitsData[i + 3] = (str[i] >= 0x30 && str[i] <= 0x39) ? _digit2segments[str[i] - 0x30] : _char2segments[str[i] - 65];
+            _digitsData[i + 3] = seg;
         }
         else if (lineNumber == 2)
         {
-            _digitsData[i] = (str[i] >= 0x30 && str[i] <= 0x39) ? _digit2segments[str[i] - 0x30] : _char2segments[str[i] - 65];
+            _digitsData[i] = seg;
         }
         else
         {
-            _digitsData[i + 3] = (str[i] >= 0x30 && str[i] <= 0x39) ? _digit2segments[str[i] - 0x30] : _char2segments[str[i] - 65];
+            _digitsData[i + 3] = seg;
         }
     }
 
@@ -362,6 +406,7 @@ uint8_t TM1637_write_byte(uint8_t value)
     return P21;
 }
 
+#if 0
 void TM1637_WriteDualSumpStatus(char sump1, char sump2)
 {
     // First digit (Sump 1 status) is at position 0 (2nd display)
@@ -405,3 +450,4 @@ void TM1637_WriteDualSumpStatus(char sump1, char sump2)
 
     TM1637_Write6Digits();
 }
+#endif

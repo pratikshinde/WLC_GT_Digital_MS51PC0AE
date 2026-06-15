@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include "WLC_functions.h"
 #include "ADC_inputs.h"
 #include "GPIO_Config.h"
 #include "UART2_functions.h"
@@ -20,13 +22,13 @@ unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, u
         corrected_volatge = lineVoltage + (0.14 * lineVoltage);
         if ((minACVolt > corrected_volatge) || (maxACVolt < corrected_volatge))
         {
-            printf("FLT Volt: %d", corrected_volatge);
+            printf("\r\nFLT Volt: %d", corrected_volatge);
             ret_val = 0;
             // L_VOLT_FLT = 1;
         }
         else
         {
-            printf("CRTVolt: %d", corrected_volatge);
+            printf("\r\nCRTVolt: %d", corrected_volatge);
             ret_val = 1;
             // L_VOLT_FLT = 0;
         }
@@ -35,14 +37,14 @@ unsigned char checkLineVoltage(unsigned int minACVolt, unsigned int maxACVolt, u
     {
         if (((minACVolt > lineVoltage) || (maxACVolt < lineVoltage)))
         {
-            printf("FLTVolt: %d", (int)lineVoltage);
+            printf("\r\nFLTVolt: %d", (int)lineVoltage);
             ret_val = 0;
 
             // L_VOLT_FLT = 1;
         }
         else
         {
-            printf("CRTVolt: %d", (int)lineVoltage);
+            printf("\r\nCRTVolt: %d", (int)lineVoltage);
             ret_val = 1;
             // L_VOLT_FLT = 0;
         }
@@ -133,7 +135,7 @@ unsigned int readACVoltage(void)
     filtered_voltage = (filtered_voltage * 0.5f) + (volt * 0.5f);
 
     lineVoltage = filtered_voltage;
-    printf("ADC DC:%u (Max:%u Min:%u) Vdd:%0.2f AC Voltage:%0.1f",
+    printf("\r\nADC DC:%u (Max:%u Min:%u) Vdd:%0.2f AC Voltage:%0.1f\r\n",
            dc_adc, max_val, min_val, VDD_Voltage / 1000, lineVoltage);
     return dc_adc;
 }

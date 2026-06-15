@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "ADC_inputs.h"
 #include "GPIO_config.h"
 #include "MS51_32K.h"

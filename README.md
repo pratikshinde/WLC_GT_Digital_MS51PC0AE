@@ -179,6 +179,8 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Improved sensing accuracy by implementing 20-sample averaging over a full 10ms (100Hz) ripple cycle, combined with an IIR low-pass filter (alpha = 0.7).
     - **Voltage Recovery Hysteresis**: Implemented a 30V hysteresis for lower-limit recovery to prevent rapid "chatter" cycling. The system now requires the voltage to reach `minACVolt + 30V` before clearing a fault.
 - **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
+- **EEPROM Relocation**: Relocated parameter storage blocks to the end pages of the 32KB flash (`0x7F00` and `0x7F80`) to expand compiled code boundaries up to `0x7EFF`, allowing full serial UART debug prints to fit cleanly.
+- **Motor 2 Start Loop Fix (Combo Mode)**: Guarded start conditions with `!motor2FaultFlag` and disabled `sourceEmpty` checks for Motor 2 in dual-sump configurations when running in COB/ACO/BOR modes. This ensures dry-run faults reliably trigger the cooldown countdown rather than immediately restarting the motor.
 
 ### Logic Enhancements
 - **SAL Mode Independent Rest & Failover**: 

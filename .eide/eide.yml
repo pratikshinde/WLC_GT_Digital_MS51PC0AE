@@ -65,7 +65,7 @@ targets:
             ram-mode: LARGE
             rom-mode: LARGE
           linker:
-            misc-controls: ""
+            misc-controls: "CLASSES(CODE(C:0x0000-C:0x7EFF), CONST(C:0x0000-C:0x7EFF))"
             output-format: elf
             remove-unused: true
     uploadConfigMap:
