@@ -106,11 +106,12 @@ typedef enum {
 
 typedef enum {
     MOTOR_MODE_ACO = 0,
-    MOTOR_MODE_SAL,
+    MOTOR_MODE_ALT,
     MOTOR_MODE_SUM,
     MOTOR_MODE_BOR,
     MOTOR_MODE_COM,
-    MOTOR_MODE_ACC
+    MOTOR_MODE_ACC,
+    MOTOR_MODE_SAL
 } MOTOR_MODES;
 
 #endif

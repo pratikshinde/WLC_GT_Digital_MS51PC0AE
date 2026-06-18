@@ -7,10 +7,11 @@ This project contains the firmware for a dual-motor and dual-source Water Level 
 - **Advanced Operation Modes**: Six distinct modes to handle various plumbing architectures:
     - **ACO (Auto Change Over)**: Primary Sump operation with automatic fallback to Borewell if the Sump is dry.
     - **ACC (Auto Change Over with Cycles)**: Combines configurable cycle-based alternation with automatic source switching (ACO). Supports M1:M2 cycle ratio (e.g., 2:4).
-    - **SAL (Sump Alternate)**: Alternates between two sources/motors with simple 1:1 logic.
+    - **ALT (Alternate)**: Alternates between two sources/motors with simple 1:1 logic.
     - **SUM (Sump Mode)**: Dedicated single-source Sump-to-Tank operation.
     - **BOR (Borewell Mode)**: Dedicated single-source Borewell-to-Tank operation.
     - **COM (Combo Mode)**: Intelligent 3-stage logic (Borewell -> Sump -> Tank).
+    - **SAL (Sump Alternate)**: Both motors draw from the same Sump and run alternatively using 1:1 logic. If one motor faults, the other motor runs. If both run dry, it goes to dry run reset timeout.
 - **Dual Tank Support**: Ability to monitor and manage two separate destination tanks using shared sensor inputs.
 - **Dual Sump Support**: Ability to monitor two separate source sumps.
 - **Independent Timing**: Separate configurable "Motor Off Time" settings for Motor 1 and Motor 2.
@@ -65,7 +66,7 @@ graph TD
 
     subgraph Modes
         ACO[Auto Change Over]
-        SAL[Alternate]
+        ALT[Alternate]
         COM[Combo Logic]
         DTK[Dual Tank Logic]
     end
@@ -150,7 +151,7 @@ Accessible via the onboard UI (SET button):
 | **RPL** | Relay Pulse | Duration for pulse-start starters |
 | **STA** | Starter Type | OLD (Mechanical) / ELE (Electronic) |
 | **DM** | Dual Motor Enable | ENA / DIS |
-| **MOD** | Operational Mode | ACO, ACC, ALT, SUM, BOR, COB (0-5) |
+| **MOD** | Operational Mode | ACO, ACC, ALT, SUM, BOR, COB, SAL (0-6) |
 | **CY1** | Motor 1 Cycles (ACC only) | Number of Motor 1 runs per alternation |
 | **CY2** | Motor 2 Cycles (ACC only) | Number of Motor 2 runs per alternation |
 | **CTE** | CT Enable | Enable current sensing |
@@ -181,14 +182,16 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Display Stability**: Centralized display update logic into a single controller function to eliminate flickering during fault states.
 - **EEPROM Relocation**: Relocated parameter storage blocks to the end pages of the 32KB flash (`0x7F00` and `0x7F80`) to expand compiled code boundaries up to `0x7EFF`, allowing full serial UART debug prints to fit cleanly.
 - **Motor 2 Start Loop Fix (Combo Mode)**: Guarded start conditions with `!motor2FaultFlag` and disabled `sourceEmpty` checks for Motor 2 in dual-sump configurations when running in COB/ACO/BOR modes. This ensures dry-run faults reliably trigger the cooldown countdown rather than immediately restarting the motor.
-- **Differentiated Dry Run Displays**: Updated the 7-segment display logic to show `RS1` or `RS2` depending on which motor (Motor 1 or Motor 2) triggered the dry-run fault, showing `RST` if both motors run dry.
+- **Differentiated & Decoupled Dry Run Displays/Alarms**: 
+    - Updated the 7-segment display logic to show `RS1` or `RS2` depending on which motor (Motor 1 or Motor 2) triggered the dry-run fault, showing `RST` if both motors run dry.
+    - Decoupled the dry-run buzzer and display warnings from the final shutdown state. The buzzer now sounds for 2 minutes whenever *any* motor runs dry, even during automatic switchover to the alternate motor (in ACO, SAL, ALT, COB, or ACC modes). During this 2-minute alarm period, digits 1 and 2 of the TM1637 display rotate `RS1`/`RS2` to indicate which motor faulted, alternating with the running motor's levels and current.
 
 ### Logic Enhancements
-- **SAL Mode Independent Rest & Failover**: 
+- **ALT Mode Independent Rest & Failover**: 
     - Transitioned from a global system rest to independent per-motor rest tracking.
     - Fixed a critical bug where `motorOffBySensorFlag` was not resetting, which previously blocked rest timers from starting.
     - Added real-time second-by-second countdown logs for resting motors.
-    - **Sump-Empty Failover**: Resolved a bug in Sump Alternate (SAL) mode where the Borewell motor (Motor 2) would fail to start or switch over when the Sump was empty. Added SAL to the startup bypass whitelist and runtime switchover logic.
+    - **Sump-Empty Failover**: Resolved a bug in Alternate (ALT) mode where the Borewell motor (Motor 2) would fail to start or switch over when the Sump was empty. Added ALT to the startup bypass whitelist and runtime switchover logic.
 - **Full Dual-Tank Support**: Restored missing operational paths for Dual-Tank mode, including automatic boot-starting, ACO/BOR mode bypass, and COM mode replenishment logic.
 - **Enhanced Failover**: Extended dry-run failover logic to support all dual-motor modes, ensuring the system can automatically switch pumps if the primary motor faults.
 - **Settings Transparency**: Fixed bit-width artifacts in debug logs (e.g., DualMotorEnable: 256) and added explicit Motor Mode reporting.
@@ -197,9 +200,9 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - User sets `CY1` and `CY2` to configure cycles (e.g., CY1=2, CY2=4 means Motor1 runs 2 times then Motor2 runs 4 times).
     - Implemented "Motor 2 Sump Bypass": Motor 2 (Borewell) now operates without checking sump sensors, while Motor 1 (Sump) maintains strict level safety.
     - Added automatic in-cycle switching: If Motor 1 runs dry, the system seamlessly transitions to Motor 2 to complete the tank fill.
-- **SAL Mode Simplified**: 
-    - SAL mode now uses simple 1:1 alternation without cycle configuration.
-    - Per-motor independent rest timers (MF1/MF2) are supported in both SAL and ACC modes.
+- **ALT Mode Simplified**: 
+    - ALT mode now uses simple 1:1 alternation without cycle configuration.
+    - Per-motor independent rest timers (MF1/MF2) are supported in both ALT and ACC modes.
 - **Sump Indicator Relay (Single Motor / Single Sump)**:
     - Repurposed the unused `O_RLY_2` relay in Single Motor (`dualMotorEnable == 0`) and Single Sump (`sumpType == 1`) configurations to serve as a sump low-level indicator.
     - The relay turns ON (active-low, set to `0`) when `sumpLevel` falls below 50%, and turns OFF (set to `1`) when `sumpLevel` is 50% or above.
