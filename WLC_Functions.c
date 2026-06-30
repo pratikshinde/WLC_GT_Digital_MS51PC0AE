@@ -11,9 +11,14 @@ struct
     unsigned int state;                   // Integrity Check
     unsigned int dryRunTimeOut;           // in Seconds 0 to 999
     long dryRunReset;                     // in minutes 0 to 999
-    unsigned int powerOnDelay;            // in Seconds 0 to 999
+#ifdef MINIMUM_FUNCTIONALITY
+    unsigned int powerOnDelaySeconds;     // POS: in Seconds 0 to 999
+    unsigned int powerOnDelayMinutes;     // POM: in Minutes 0 to 999
+    unsigned int powerOnDelayHours;       // POH: in Hours 0 to 999
+#else
+    unsigned int powerOnDelay;            // POD: in Seconds 0 to 999
+#endif
     unsigned int secondaryDryRunDuration; // in seconds 0 to 999
-    unsigned int powerOnDelay2;           // in Minutes 0 to 999
     unsigned int tankOnLevel;
     unsigned int tankOffLevel;
     unsigned int motorOnTime1;
@@ -100,16 +105,59 @@ MOTOR_STATES motor_state = MOTOR_STATE_OFF;
 WORKING_MODE work_mode = WORKING_MODE_AUTO;
 void powerOnDelayCounter(void)
 {
+#ifdef MINIMUM_FUNCTIONALITY
+    unsigned long total_pod_seconds = (unsigned long)GlobalSettings.powerOnDelaySeconds + 
+                                     ((unsigned long)GlobalSettings.powerOnDelayMinutes * 60) + 
+                                     ((unsigned long)GlobalSettings.powerOnDelayHours * 3600);
+#else
+    unsigned long total_pod_seconds = (unsigned long)GlobalSettings.powerOnDelay;
+#endif
+    
     // Power On Delay CountDown
     state_ticks_100ms = pod_ticks_100ms = getTicks100ms();
-    while (getTicks100ms() - pod_ticks_100ms < (GlobalSettings.powerOnDelay * 10)) // execute every 200ms
+    while (getTicks100ms() - pod_ticks_100ms < (total_pod_seconds * 10))
     {
         if ((getTicks100ms() - state_ticks_100ms) > 10)
         {
+            unsigned long elapsed_seconds = (getTicks100ms() - pod_ticks_100ms) / 10;
+            unsigned long remaining_seconds = 0;
+            if (total_pod_seconds > elapsed_seconds)
+            {
+                remaining_seconds = total_pod_seconds - elapsed_seconds;
+            }
+            
             state_ticks_100ms = getTicks100ms();
+            
+#ifdef MINIMUM_FUNCTIONALITY
+            {
+                unsigned int disp_val;
+                const char *label;
+                
+                if (remaining_seconds >= 3600)
+                {
+                    label = "POH";
+                    disp_val = (unsigned int)(remaining_seconds / 3600);
+                }
+                else if (remaining_seconds >= 60)
+                {
+                    label = "POM";
+                    disp_val = (unsigned int)(remaining_seconds / 60);
+                }
+                else
+                {
+                    label = "POS";
+                    disp_val = (unsigned int)remaining_seconds;
+                }
+                
+                TM1637_WriteString(1, (char *)label);
+                TM1637_WriteNumber(2, disp_val);
+                printf("\r\nPOD Timeout: %s %d", label, disp_val);
+            }
+#else
             TM1637_WriteString(1, "POD");
-            TM1637_WriteNumber(2, (GlobalSettings.powerOnDelay) - (getTicks100ms() - pod_ticks_100ms) / 10);
-            printf("\r\nPOD Timeout: %ld", (GlobalSettings.powerOnDelay) - (getTicks100ms() - pod_ticks_100ms) / 10);
+            TM1637_WriteNumber(2, (unsigned int)remaining_seconds);
+            printf("\r\nPOD Timeout: %ld", remaining_seconds);
+#endif
         }
     }
     readVdd();
@@ -1308,7 +1356,13 @@ void configSettings(void)
     while ((getTicks100ms() - setting_ticks_100ms) < 20)
         ;
 
+#ifdef MINIMUM_FUNCTIONALITY
+    GlobalSettings.powerOnDelaySeconds = editParameter("POS", GlobalSettings.powerOnDelaySeconds, 0, 999, 1, 1, DISP_NUMERIC);
+    GlobalSettings.powerOnDelayMinutes = editParameter("POM", GlobalSettings.powerOnDelayMinutes, 0, 999, 1, 1, DISP_NUMERIC);
+    GlobalSettings.powerOnDelayHours = editParameter("POH", GlobalSettings.powerOnDelayHours, 0, 999, 1, 1, DISP_NUMERIC);
+#else
     GlobalSettings.powerOnDelay = editParameter("POD", GlobalSettings.powerOnDelay, 0, 999, 1, 1, DISP_NUMERIC);
+#endif
     GlobalSettings.dryRunTimeOut = editParameter("DR1", GlobalSettings.dryRunTimeOut, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.secondaryDryRunDuration = editParameter("DR2", GlobalSettings.secondaryDryRunDuration, 0, 999, 1, 1, DISP_NUMERIC);
     GlobalSettings.dryRunReset = editParameter("RST", GlobalSettings.dryRunReset, 0, 999, 1, 1, DISP_NUMERIC);
@@ -1372,12 +1426,16 @@ void readSettingsEEPROM(void)
     printf("\r\nST: %d", GlobalSettings.state);
     printf("\r\nST2: %d", GlobalSettings.state2);
 
-    if ((GlobalSettings.state == 1) && (GlobalSettings.state2 == 83))
+    if ((GlobalSettings.state == 1) && (GlobalSettings.state2 == 84))
     {
         printf("\r\nDryRunTime: %d", GlobalSettings.dryRunTimeOut);
         printf("\r\nDryRunRST: %d", GlobalSettings.dryRunReset);
         printf("\r\n2ndDryRun: %d", GlobalSettings.secondaryDryRunDuration);
+#ifdef MINIMUM_FUNCTIONALITY
+        printf("\r\nPOD S/M/H: %d/%d/%d", GlobalSettings.powerOnDelaySeconds, GlobalSettings.powerOnDelayMinutes, GlobalSettings.powerOnDelayHours);
+#else
         printf("\r\nPower On Delay: %d", GlobalSettings.powerOnDelay);
+#endif
         printf("\r\nTank On Level: %d", GlobalSettings.tankOnLevel);
         printf("\r\nTank Off Level: %d", GlobalSettings.tankOffLevel);
         printf("\r\nMotor 1 On Time: %d", GlobalSettings.motorOnTime1);
@@ -1431,12 +1489,18 @@ void readSettingsEEPROM(void)
     {
         // these are default settings
         GlobalSettings.state = 1;
-        GlobalSettings.state2 = 83;
+        GlobalSettings.state2 = 84;
 
         GlobalSettings.dryRunTimeOut = 60;           // default 120S
         GlobalSettings.dryRunReset = 120;            // default 2 hrs, value stored in minutes
         GlobalSettings.secondaryDryRunDuration = 20; // default 20s
-        GlobalSettings.powerOnDelay = 10;            // default 20s
+#ifdef MINIMUM_FUNCTIONALITY
+        GlobalSettings.powerOnDelaySeconds = 10;
+        GlobalSettings.powerOnDelayMinutes = 0;
+        GlobalSettings.powerOnDelayHours = 0;
+#else
+        GlobalSettings.powerOnDelay = 10;            // default 10s
+#endif
         GlobalSettings.tankOnLevel = 50;
         GlobalSettings.tankOffLevel = 100;
         GlobalSettings.motorOnTime1 = 30;
@@ -1636,6 +1700,15 @@ void Motor1_On()
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
     motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
+
+    /* Relay switching causes inductive spikes / EMI that can corrupt the
+       bit-banged TM1637 protocol.  Wait for the noise to settle, then
+       re-initialise the display communication and push cached data. */
+    {   unsigned long settle = getTicks100ms();
+        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+    }
+    TM1637_init(1, 5);
+    TM1637_Write6Digits();
 }
 
 #ifdef MINIMUM_FUNCTIONALITY
@@ -1713,6 +1786,15 @@ void Motor2_On()
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
     motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
+
+    /* Relay switching causes inductive spikes / EMI that can corrupt the
+       bit-banged TM1637 protocol.  Wait for the noise to settle, then
+       re-initialise the display communication and push cached data. */
+    {   unsigned long settle = getTicks100ms();
+        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+    }
+    TM1637_init(1, 5);
+    TM1637_Write6Digits();
 }
 
 void Motor2_Off()
@@ -1729,6 +1811,15 @@ void Motor2_Off()
     L_MOT1_ON = 0;
     // L_MOT2_ON = 0; // Not used/mapped
     motorResetTicks = getTicks100ms();
+
+    /* Relay switching causes inductive spikes / EMI that can corrupt the
+       bit-banged TM1637 protocol.  Wait for the noise to settle, then
+       re-initialise the display communication and push cached data. */
+    {   unsigned long settle = getTicks100ms();
+        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+    }
+    TM1637_init(1, 5);
+    TM1637_Write6Digits();
 }
 #endif
 
@@ -1740,6 +1831,15 @@ void Motor1_Off()
     runningMotor = 0;
     L_MOT1_ON = 0;
     motorResetTicks = getTicks100ms();
+
+    /* Relay switching causes inductive spikes / EMI that can corrupt the
+       bit-banged TM1637 protocol.  Wait for the noise to settle, then
+       re-initialise the display communication and push cached data. */
+    {   unsigned long settle = getTicks100ms();
+        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+    }
+    TM1637_init(1, 5);
+    TM1637_Write6Digits();
 }
 
 static void Handle_ButtonPresses(void)
@@ -1897,7 +1997,7 @@ static void StateHandler_MotorOnDelay(void)
 
 static void StateHandler_PrimaryDryRunCheck(void)
 {
-    printf("\r\nState:MOTOR_ON_PRIMARY_DRY_RUN_CHECK");
+    printf("\r\nST:PRI_DRY");
     if (GlobalSettings.dryRunTimeOut)
     {
         if (checkMotorOffConditions())
@@ -1992,7 +2092,7 @@ static void StateHandler_PrimaryDryRunCheck(void)
 static void StateHandler_DryRunFault(void)
 {
     flowLEDsDryRunFault();
-    printf("\r\nState:MOTOR_OFF_DRY_RUN_FAULT");
+    printf("\r\nST:DRY_FAULT");
     if (!dryRunResetInitFlag)
     {
         dryRunResetInitFlag = 1;
@@ -2039,7 +2139,7 @@ static void StateHandler_DryRunFault(void)
 
 static void StateHandler_SecondaryDryRunCheck(void)
 {
-    printf("\r\nState:MOTOR_ON_SECONDARY_DRY_CHECK");
+    printf("\r\nST:SEC_DRY");
     if (dryRunState == 0)
     {
         state_ticks_100ms = getTicks100ms();
@@ -3025,13 +3125,11 @@ unsigned int checkMotorResetTimeOut(void)
     if (motorOffTime_val)
     {
         tempOffTime = motorOffTime_val - ((getTicks100ms() - motorResetTicks) / 10);
-        printf("\r\nMotorResetTimeRemaining:%ld\r\n", tempOffTime);
         if ((((getTicks100ms() - motorResetTicks) / 10) % (60 * 1) == 0))
         {
             // Elapsed minute, update value in EEPROM every 1 minutes
             if (((getTicks100ms() - motorResetTicks) / 10) > 10)
             {
-                printf("\r\n1 Minute Completed, update value in EEPROM\r\n");
                 updateMotorOffRemainingRemainingTime(motorOffTime_val - ((getTicks100ms() - motorResetTicks) / 10));
                 _delay_ms(1200);
             }
@@ -3296,7 +3394,6 @@ void buzzerLoop(void)
         if (((getTicks100ms() - dryRunBuzzerStartTicks) / 10) < 120) // 120 seconds = 2 minutes
         {
             BUZZ = !BUZZ;
-            printf("\r\nDry Run Buzzer Timeout:%ld", 120 - (getTicks100ms() - dryRunBuzzerStartTicks) / 10);
             return;
         }
         else
