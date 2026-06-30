@@ -1799,47 +1799,55 @@ void Motor2_On()
 
 void Motor2_Off()
 {
-    // In single motor + single sump, O_RLY_2 is repurposed as sump level relay
-    // Only reset relay pins when actually used for motor control
-    if (GlobalSettings.dualMotorEnable == 1)
+    // Only perform turn-off sequence if motor was running (or relays were active)
+    if (O_RLY_3 || (GlobalSettings.dualMotorEnable == 1 && O_RLY_2) || motorState || runningMotor == 2)
     {
-        O_RLY_2 = 0;
-    }
-    O_RLY_3 = 0;
-    motorState = 0;
-    runningMotor = 0;
-    L_MOT1_ON = 0;
-    // L_MOT2_ON = 0; // Not used/mapped
-    motorResetTicks = getTicks100ms();
+        // In single motor + single sump, O_RLY_2 is repurposed as sump level relay
+        // Only reset relay pins when actually used for motor control
+        if (GlobalSettings.dualMotorEnable == 1)
+        {
+            O_RLY_2 = 0;
+        }
+        O_RLY_3 = 0;
+        motorState = 0;
+        runningMotor = 0;
+        L_MOT1_ON = 0;
+        // L_MOT2_ON = 0; // Not used/mapped
+        motorResetTicks = getTicks100ms();
 
-    /* Relay switching causes inductive spikes / EMI that can corrupt the
-       bit-banged TM1637 protocol.  Wait for the noise to settle, then
-       re-initialise the display communication and push cached data. */
-    {   unsigned long settle = getTicks100ms();
-        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+        /* Relay switching causes inductive spikes / EMI that can corrupt the
+           bit-banged TM1637 protocol.  Wait for the noise to settle, then
+           re-initialise the display communication and push cached data. */
+        {   unsigned long settle = getTicks100ms();
+            while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+        }
+        TM1637_init(1, 5);
+        TM1637_Write6Digits();
     }
-    TM1637_init(1, 5);
-    TM1637_Write6Digits();
 }
 #endif
 
 void Motor1_Off()
 {
-    O_RLY_0 = 0;
-    O_RLY_1 = 0;
-    motorState = 0;
-    runningMotor = 0;
-    L_MOT1_ON = 0;
-    motorResetTicks = getTicks100ms();
+    // Only perform turn-off sequence if motor was running (or relays were active)
+    if (O_RLY_0 || O_RLY_1 || motorState || runningMotor == 1)
+    {
+        O_RLY_0 = 0;
+        O_RLY_1 = 0;
+        motorState = 0;
+        runningMotor = 0;
+        L_MOT1_ON = 0;
+        motorResetTicks = getTicks100ms();
 
-    /* Relay switching causes inductive spikes / EMI that can corrupt the
-       bit-banged TM1637 protocol.  Wait for the noise to settle, then
-       re-initialise the display communication and push cached data. */
-    {   unsigned long settle = getTicks100ms();
-        while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+        /* Relay switching causes inductive spikes / EMI that can corrupt the
+           bit-banged TM1637 protocol.  Wait for the noise to settle, then
+           re-initialise the display communication and push cached data. */
+        {   unsigned long settle = getTicks100ms();
+            while ((getTicks100ms() - settle) < 20) ; /* 200 ms settling delay */
+        }
+        TM1637_init(1, 5);
+        TM1637_Write6Digits();
     }
-    TM1637_init(1, 5);
-    TM1637_Write6Digits();
 }
 
 static void Handle_ButtonPresses(void)
@@ -2795,9 +2803,9 @@ void startSelectedMotor(void)
 
         case MOTOR_MODE_COM: // Combo Mode
         {
-            unsigned char tankNeedsFilling = GlobalSettings.dualTankEnable
-                ? (GlobalSensorCount.stateT25 == 0 || GlobalSensorCount.stateT75 == 0)
-                : (tankLevel < GlobalSettings.tankOnLevel);
+            unsigned char tankNotFull = GlobalSettings.dualTankEnable
+                ? !(GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100)
+                : (tankLevel < 100);
 
             if (sumpLevel < 25)
             {
@@ -2810,7 +2818,7 @@ void startSelectedMotor(void)
                     state = MOTOR_OFF_DRY_RUN_FAULT;
                 }
             }
-            else if (sumpLevel >= 50 && tankNeedsFilling)
+            else if (sumpLevel >= 25 && tankNotFull) // Water present in sump, and tank not full
             {
                 if (!motor1FaultFlag)
                 {
@@ -2859,7 +2867,7 @@ unsigned int checkMotorOnConditions(void)
 #ifdef MINIMUM_FUNCTIONALITY
             if ((tankLevel < 100) && sumpLevel)
 #else
-            if ((tankLevel < 100) && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR))))
+            if ((tankLevel < 100) && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_COM))))
 #endif
             {
                 if (!motorState)
@@ -2882,13 +2890,14 @@ unsigned int checkMotorOnConditions(void)
         // COM Mode Special Triggers
         if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
         {
-            // Case 1: Tank Full -> Fill Sump (Maintenance)
-            if (tankLevel >= GlobalSettings.tankOffLevel && sumpLevel < 50)
+            // Case 1: Tank >= 50% and Sump not full -> Bore to Sump
+            // Keep bore running to fill sump whenever tank has reserves and sump is empty
+            if (tankLevel >= 50 && sumpLevel < 100 && sumpEmptyDetectFlag == 1)
             {
                 if (!motor2FaultFlag && !motorState)
                 {
                     state = MOTOR_ON;
-                    printf("\r\nCOM: Tank Full, Filling Sump");
+                    printf("\r\nCOM: Tank>=50, Filling Sump");
                     state_ticks_100ms = getTicks100ms();
                     motorOnInitFlag = 0;
                     ret_val = 1;
@@ -2896,9 +2905,7 @@ unsigned int checkMotorOnConditions(void)
                 return ret_val;
             }
             // Case 2: Sump Empty -> Start Bore to fill Sump
-            // Use tankOffLevel (not tankOnLevel) to avoid deadlock when M1 has
-            // already pushed tank past tankOnLevel before the sump ran dry.
-            if (tankLevel < GlobalSettings.tankOffLevel && sumpLevel < 25)
+            if (tankLevel < 50 && sumpEmptyDetectFlag == 1 && sumpLevel < 50)
             {
                 if (!motor2FaultFlag && !motorState)
                 {
@@ -2931,7 +2938,7 @@ unsigned int checkMotorOnConditions(void)
             if (!(GlobalSettings.motorMode == MOTOR_MODE_COM && motor1FaultFlag) && !motorState)
             {
                 state = MOTOR_ON;
-                printf("\r\nmotor start");
+                printf("\r\nMotor start");
                 state_ticks_100ms = getTicks100ms();
                 motorOnInitFlag = 0;
                 ret_val = 1;
@@ -2991,7 +2998,7 @@ unsigned int checkMotorOnConditions(void)
 #ifdef MINIMUM_FUNCTIONALITY
             if (dualTankLow && sumpLevel)
 #else
-            if (dualTankLow && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR))))
+            if (dualTankLow && (sumpLevel || (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_COM))))
 #endif
             {
                 if (!motorState)
@@ -3015,7 +3022,7 @@ unsigned int checkMotorOnConditions(void)
         if (GlobalSettings.dualMotorEnable && GlobalSettings.motorMode == MOTOR_MODE_COM)
         {
             // Case 1: Sump empty → Bore to Sump
-            if (sumpLevel < 25)
+            if (sumpEmptyDetectFlag == 1 && sumpLevel < 50)
             {
                 if (!motor2FaultFlag && !motorState)
                 {
@@ -3040,13 +3047,13 @@ unsigned int checkMotorOnConditions(void)
                 }
                 return ret_val;
             }
-            // Case 3: Both tanks full AND sump below 75 → Bore to Sump (maintenance)
-            if ((GlobalSensorCount.stateT50 && GlobalSensorCount.stateT100) && sumpLevel < 75)
+            // Case 3: Tanks have water (>= 50%) AND sump not full → Bore to Sump
+            if ((GlobalSensorCount.stateT25 || GlobalSensorCount.stateT75) && sumpLevel < 100 && sumpEmptyDetectFlag == 1)
             {
                 if (!motor2FaultFlag && !motorState)
                 {
                     state = MOTOR_ON;
-                    printf("\r\nCOM DT: Tanks Full, Sump Low -> Bore to Sump");
+                    printf("\r\nCOM DT: Tank>=50, Filling Sump");
                     state_ticks_100ms = getTicks100ms();
                     motorOnInitFlag = 0;
                     ret_val = 1;
@@ -3235,17 +3242,17 @@ unsigned int checkMotorOffConditions(void)
                     }
                     else if (runningMotor == 2) // Bore to Sump
                     {
-                        if (sumpLevel >= 50 && tankLevel < 100)
+                        if (sumpLevel >= 100)
                         {
-                            printf("\r\nCOM: Sump above 50 %% - M2 Off");
+                            printf("\r\nCOM: Sump Full - M2 Off");
                             state_ticks_100ms = getTicks100ms();
                             state = MOTOR_OFF;
                             ret_val = 1;
                             motorOffBySensorFlag = 1;
                         }
-                        else if (sumpLevel == 100 && tankLevel == 100)
+                        else if (sumpLevel >= 50 && tankLevel < 50)
                         {
-                            printf("\r\nCOM: Sump Full and Tank Full - M2 Off");
+                            printf("\r\nCOM: Sump above 50 %% - M2 Off");
                             state_ticks_100ms = getTicks100ms();
                             state = MOTOR_OFF;
                             ret_val = 1;
@@ -3283,17 +3290,17 @@ unsigned int checkMotorOffConditions(void)
                     }
                     else if (runningMotor == 2) // Bore to Sump
                     {
-                        if (sumpLevel >= 50 && (GlobalSensorCount.stateT25 == 0 || GlobalSensorCount.stateT75 == 0))
+                        if (sumpLevel >= 100)
                         {
-                            printf("\r\nCOM DT: Sump above 50%% and Tanks Empty - M2 Off");
+                            printf("\r\nCOM DT: Sump Full - M2 Off");
                             state_ticks_100ms = getTicks100ms();
                             state = MOTOR_OFF;
                             ret_val = 1;
                             motorOffBySensorFlag = 1;
                         }
-                        else if (sumpLevel == 100)
+                        else if (sumpLevel >= 50 && (GlobalSensorCount.stateT25 == 0 && GlobalSensorCount.stateT75 == 0))
                         {
-                            printf("\r\nCOM DT: Sump Full and Both Tanks Full - M2 Off");
+                            printf("\r\nCOM DT: Sump above 50%% and Tanks Empty - M2 Off");
                             state_ticks_100ms = getTicks100ms();
                             state = MOTOR_OFF;
                             ret_val = 1;

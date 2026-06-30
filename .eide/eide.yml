@@ -59,13 +59,14 @@ targets:
           asm-compiler: {}
           beforeBuildTasks: []
           c/cpp-compiler:
+            misc-controls: OBJECTADVANCED BROWSE FLOATFUZZY(2)
             optimization-level: level-8
-            optimization-type: SPEED
+            optimization-type: SIZE
           global:
             ram-mode: LARGE
             rom-mode: LARGE
           linker:
-            misc-controls: "CLASSES(CODE(C:0x0000-C:0x7EFF), CONST(C:0x0000-C:0x7EFF))"
+            misc-controls: CLASSES(CODE(C:0x0000-C:0x7EFF), CONST(C:0x0000-C:0x7EFF))
             output-format: elf
             remove-unused: true
     uploadConfigMap:
