@@ -2895,13 +2895,15 @@ unsigned int checkMotorOnConditions(void)
                 }
                 return ret_val;
             }
-            // Case 2: Tank Low, Sump Empty -> Start Bore to fill Sump
-            if (tankLevel < GlobalSettings.tankOnLevel && sumpLevel < 25)
+            // Case 2: Sump Empty -> Start Bore to fill Sump
+            // Use tankOffLevel (not tankOnLevel) to avoid deadlock when M1 has
+            // already pushed tank past tankOnLevel before the sump ran dry.
+            if (tankLevel < GlobalSettings.tankOffLevel && sumpLevel < 25)
             {
                 if (!motor2FaultFlag && !motorState)
                 {
                     state = MOTOR_ON;
-                    printf("\r\nCOM: Tank Low, Sump Empty -> Start Bore");
+                    printf("\r\nCOM: Sump Empty -> Start Bore");
                     state_ticks_100ms = getTicks100ms();
                     motorOnInitFlag = 0;
                     ret_val = 1;
