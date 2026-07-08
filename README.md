@@ -191,6 +191,9 @@ The firmware has recently undergone a comprehensive stability and logic audit to
 - **Differentiated & Decoupled Dry Run Displays/Alarms**: 
     - Updated the 7-segment display logic to show `RS1` or `RS2` depending on which motor (Motor 1 or Motor 2) triggered the dry-run fault, showing `RST` if both motors run dry.
     - Decoupled the dry-run buzzer and display warnings from the final shutdown state. The buzzer now sounds for 2 minutes whenever *any* motor runs dry, even during automatic switchover to the alternate motor (in ACO, SAL, ALT, COB, or ACC modes). During this 2-minute alarm period, digits 1 and 2 of the TM1637 display rotate `RS1`/`RS2` to indicate which motor faulted, alternating with the running motor's levels and current.
+- **Dynamic Dry-Run Switchover (Combo Mode)**: Instead of transitioning to dry-run fault shutdown immediately when a single motor runs dry in Combo (COM/COB) mode, the system now attempts to switch over and run the alternate motor (e.g. running Motor 2 to fill the sump if Motor 1 is faulted, or vice-versa) if it is healthy and needed. It falls back to the dry-run fault reset countdown only if both motors are faulted, or the alternate motor cannot be started.
+- **Sump Type (SUM) setting in Minimum Functionality mode**: Exposed the Sump Type (SUM) parameter configuration in `MINIMUM_FUNCTIONALITY` mode (restricting options to `0` - Borewell and `1` - Single Sump). When configured as a Borewell (`sumpType == 0`), sump level checks are bypassed (`sumpLevel` is set to `50` so it has water), and `"BOR"` is displayed on Digit 2 of the display instead of the level. Also capped `sumpType` to `1` in read settings/loading rather than blindly hardcoding it to `1` at boot.
+
 
 ### Logic Enhancements
 - **ALT Mode Independent Rest & Failover**: 

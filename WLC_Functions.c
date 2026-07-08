@@ -261,17 +261,17 @@ void refreshCurrentDisplay(void)
         else
         {
             TM1637_WriteNumber(1, tankLevel);
-#ifndef MINIMUM_FUNCTIONALITY
             if (GlobalSettings.sumpType == 0)
             {
                 TM1637_WriteString(2, "BOR");
             }
+#ifndef MINIMUM_FUNCTIONALITY
             else if (GlobalSettings.sumpType == 2)
             {
                 displayDualSumpRolling();
             }
-            else
 #endif
+            else
             {
 #ifndef MINIMUM_FUNCTIONALITY
                 if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
@@ -365,17 +365,17 @@ void refreshCurrentDisplay(void)
                     }
                     else
                     {
-#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.sumpType == 0)
                         {
                             TM1637_WriteString(2, "BOR");
                         }
+#ifndef MINIMUM_FUNCTIONALITY
                         else if (GlobalSettings.sumpType == 2)
                         {
                             displayDualSumpRolling();
                         }
-                        else
 #endif
+                        else
                         {
 #ifndef MINIMUM_FUNCTIONALITY
                             if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
@@ -404,17 +404,17 @@ void refreshCurrentDisplay(void)
                     }
                     else
                     {
-#ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.sumpType == 0)
                         {
                             TM1637_WriteString(2, "BOR");
                         }
+#ifndef MINIMUM_FUNCTIONALITY
                         else if (GlobalSettings.sumpType == 2)
                         {
                             displayDualSumpRolling();
                         }
-                        else
 #endif
+                        else
                         {
 #ifndef MINIMUM_FUNCTIONALITY
                             if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
@@ -462,17 +462,17 @@ void refreshCurrentDisplay(void)
                             TM1637_WriteNumber(1, 0);
                     }
 
-#ifndef MINIMUM_FUNCTIONALITY
                     if (GlobalSettings.sumpType == 0)
                     {
                         TM1637_WriteString(2, "BOR");
                     }
+#ifndef MINIMUM_FUNCTIONALITY
                     else if (GlobalSettings.sumpType == 2)
                     {
                         displayDualSumpRolling();
                     }
-                    else
 #endif
+                    else
                     {
 #ifndef MINIMUM_FUNCTIONALITY
                         if (GlobalSettings.dualMotorEnable && (GlobalSettings.motorMode == MOTOR_MODE_ACO || GlobalSettings.motorMode == MOTOR_MODE_BOR) && runningMotor == 2)
@@ -805,11 +805,11 @@ void updateSensorLED(void)
         }
     }
 
-#ifndef MINIMUM_FUNCTIONALITY
     if (GlobalSettings.sumpType == 0)
     {
         sumpLevel = 50;
     }
+#ifndef MINIMUM_FUNCTIONALITY
     else if (GlobalSettings.sumpType == 1)
     {
         // Dual motor is generally not used with single sump logic in same context, but ensure standard logic
@@ -1371,7 +1371,9 @@ void configSettings(void)
     min_tank_off = GlobalSettings.tankOnLevel + 25;
     GlobalSettings.tankOffLevel = editParameter("TOF", GlobalSettings.tankOffLevel, min_tank_off, 100, 25, 25, DISP_NUMERIC);
     GlobalSettings.dualTankEnable = editParameter("DTK", GlobalSettings.dualTankEnable, 0, 1, 1, 1, DISP_ENA_DIS);
-#ifndef MINIMUM_FUNCTIONALITY
+#ifdef MINIMUM_FUNCTIONALITY
+    GlobalSettings.sumpType = editParameter("SUM", GlobalSettings.sumpType, 0, 1, 1, 1, DISP_SUMP_MODE);
+#else
     GlobalSettings.sumpType = editParameter("SUM", GlobalSettings.sumpType, 0, 2, 1, 1, DISP_SUMP_MODE);
 #endif
     GlobalSettings.motorOnTime1 = editParameter("MO1", GlobalSettings.motorOnTime1, 0, 999, 1, 1, DISP_NUMERIC);
@@ -1463,7 +1465,10 @@ void readSettingsEEPROM(void)
         printf("\r\nVoltLimitEnable: %d", (int)GlobalSettings.voltageLimitEnable);
 #ifdef MINIMUM_FUNCTIONALITY
         GlobalSettings.dualMotorEnable = 0;
-        GlobalSettings.sumpType = 1;
+        if (GlobalSettings.sumpType > 1)
+        {
+            GlobalSettings.sumpType = 1;
+        }
 #endif
         printf("\r\nMode: ");
         if (GlobalSettings.workMode == WORKING_MODE_AUTO)
@@ -1527,7 +1532,6 @@ void readSettingsEEPROM(void)
 
 #ifdef MINIMUM_FUNCTIONALITY
         GlobalSettings.dualMotorEnable = 0;
-        GlobalSettings.sumpType = 1;
 #endif
 
         L_MODE_AUTO = 0;
@@ -2018,6 +2022,8 @@ static void StateHandler_PrimaryDryRunCheck(void)
             {
                 printf("\r\nMotor Running..");
                 flowLEDsMotorOn();
+                state = MOTOR_ON_SECONDARY_DRY_CHECK;
+                state_ticks_100ms = getTicks100ms();
             }
             else
             {
@@ -2055,7 +2061,7 @@ static void StateHandler_PrimaryDryRunCheck(void)
                         dryRunBuzzerActive = 1;
                         dryRunBuzzerStartTicks = getTicks100ms();
 
-                        if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_COM)
+                        if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR)
                         {
                             state = MOTOR_OFF_DRY_RUN_FAULT;
                             printf("\r\nDry Run Fault (Non-Alternating Mode)");
@@ -2196,7 +2202,7 @@ static void StateHandler_SecondaryDryRunCheck(void)
                     dryRunBuzzerActive = 1;
                     dryRunBuzzerStartTicks = getTicks100ms();
 
-                    if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR || GlobalSettings.motorMode == MOTOR_MODE_COM)
+                    if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR)
                     {
                         state = MOTOR_OFF_DRY_RUN_FAULT;
                         printf("\r\nDry Run Fault (Non-Alternating Mode)");
@@ -2824,6 +2830,10 @@ void startSelectedMotor(void)
                 {
                     Motor1_On(); // Fill Tank from Sump
                 }
+                else if (!motor2FaultFlag && sumpLevel < 100)
+                {
+                    Motor2_On(); // M1 faulted, run M2 to fill sump
+                }
                 else
                 {
                     state = MOTOR_OFF_DRY_RUN_FAULT;
@@ -2831,7 +2841,7 @@ void startSelectedMotor(void)
             }
             else
             {
-                if (!motor2FaultFlag)
+                if (!motor2FaultFlag && sumpLevel < 100)
                 {
                     Motor2_On();
                 }
@@ -2892,7 +2902,7 @@ unsigned int checkMotorOnConditions(void)
         {
             // Case 1: Tank >= 50% and Sump not full -> Bore to Sump
             // Keep bore running to fill sump whenever tank has reserves and sump is empty
-            if (tankLevel >= 50 && sumpLevel < 100 && sumpEmptyDetectFlag == 1)
+            if (tankLevel >= 50 && sumpLevel < 100 )
             {
                 if (!motor2FaultFlag && !motorState)
                 {
