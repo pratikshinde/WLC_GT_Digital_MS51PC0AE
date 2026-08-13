@@ -10,7 +10,27 @@ sbit P23 = P2 ^ 3;
 sbit P24 = P2 ^ 4;
 sbit P25 = P2 ^ 5;
 
-/* Sensor Inputs Definition*/
+/* Board Configuration Selector */
+#define SHIVAPPA_DIGITAL
+
+#ifdef SHIVAPPA_DIGITAL
+
+/* Sensor Inputs Definition for Shivappa Digital Board */
+#define S_SUMP_25  P10
+#define S_SUMP_50  P00
+#define S_SUMP_75  P01
+#define S_SUMP_100 P33
+
+#define S_TANK_25  P35
+#define S_TANK_50  P31
+#define S_TANK_75  P32
+#define S_TANK_100 P12
+
+#define S_DRY_RUN  P11
+
+#else
+
+/* Original Sensor Inputs Definition*/
 #define S_SUMP_25  P33
 #define S_SUMP_50  P01
 #define S_SUMP_75  P00
@@ -22,6 +42,8 @@ sbit P25 = P2 ^ 5;
 #define S_TANK_100 P31
 
 #define S_DRY_RUN  P35
+
+#endif
 
 /* Output Definitions */
 #define L_FLOW_1    P17
@@ -47,7 +69,24 @@ sbit P25 = P2 ^ 5;
 /* CT Coil Connected to P06 ADC_CH3 */
 /* Mode Selection Switch connected to P04 ADC_CH5 */
 
-/* GPIO Inititalizing MACROs*/
+#ifdef SHIVAPPA_DIGITAL
+
+/* GPIO Inititalizing MACROs for Shivappa Digital Board */
+#define S_SUMP_25_INIT  P10_PULLUP_ENABLE
+#define S_SUMP_50_INIT  P00_PULLUP_ENABLE
+#define S_SUMP_75_INIT  P01_PULLUP_ENABLE
+#define S_SUMP_100_INIT P33_PULLUP_ENABLE
+
+#define S_TANK_25_INIT  P35_PULLUP_ENABLE
+#define S_TANK_50_INIT  P31_PULLUP_ENABLE
+#define S_TANK_75_INIT  P32_PULLUP_ENABLE
+#define S_TANK_100_INIT P12_PULLUP_ENABLE
+
+#define S_DRY_RUN_INIT  P11_PULLUP_ENABLE
+
+#else
+
+/* GPIO Inititalizing MACROs */
 #define S_SUMP_25_INIT  P33_PULLUP_ENABLE
 #define S_SUMP_50_INIT  P01_PULLUP_ENABLE
 #define S_SUMP_75_INIT  P00_PULLUP_ENABLE
@@ -59,6 +98,8 @@ sbit P25 = P2 ^ 5;
 #define S_TANK_100_INIT P31_PULLUP_ENABLE
 
 #define S_DRY_RUN_INIT  P35_PULLUP_ENABLE
+
+#endif
 
 /* Output Definitions */
 #define L_FLOW_1_INIT    P17_PUSHPULL_MODE

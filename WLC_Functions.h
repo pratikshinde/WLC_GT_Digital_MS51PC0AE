@@ -1,7 +1,7 @@
 #ifndef __WLC_functions__
 #define __WLC_functions__
 
-//#define MINIMUM_FUNCTIONALITY           1
+#define MINIMUM_FUNCTIONALITY           1
 
 //#define ENABLE_SUMP_BUZZER								1
 // #define ENABLE_TANK_BUZZER								1

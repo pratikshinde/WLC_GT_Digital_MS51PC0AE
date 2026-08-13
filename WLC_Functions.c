@@ -302,11 +302,8 @@ void refreshCurrentDisplay(void)
         {
             if (GlobalSettings.dualTankEnable == 0)
             {
-                if (state != MOTOR_OFF_RESET_DELAY)
-                {
-                    if (showAltDisplay == 0) // Only display tank level in normal mode to prevent flickering
-                        TM1637_WriteNumber(1, tankLevel);
-                }
+                if (showAltDisplay == 0) // Only display tank level in normal mode to prevent flickering
+                    TM1637_WriteNumber(1, tankLevel);
 
                 if (motorState)
                 {
@@ -392,15 +389,18 @@ void refreshCurrentDisplay(void)
                 }
                 else
                 {
-                    if (state == MOTOR_OFF_RESET_DELAY)
+                    if (showAltDisplay == 1)
                     {
-                        TM1637_WriteString(1, "OFF");
-                        TM1637_WriteNumberDP(2, getRemainingOffTime());
-                    }
-                    else if (showAltDisplay == 1)
-                    {
-                        TM1637_WriteString(1, "MOT");
-                        TM1637_WriteNumberDP(2, motorRunTimeMinutes);
+                        if (state == MOTOR_OFF_RESET_DELAY)
+                        {
+                            TM1637_WriteString(1, "OFF");
+                            TM1637_WriteNumberDP(2, getRemainingOffTime());
+                        }
+                        else
+                        {
+                            TM1637_WriteString(1, "MOT");
+                            TM1637_WriteNumberDP(2, motorRunTimeMinutes);
+                        }
                     }
                     else
                     {
