@@ -11,7 +11,7 @@ sbit P24 = P2 ^ 4;
 sbit P25 = P2 ^ 5;
 
 /* Board Configuration Selector */
-#define SHIVAPPA_DIGITAL
+//#define SHIVAPPA_DIGITAL
 
 #ifdef SHIVAPPA_DIGITAL
 

@@ -1,7 +1,7 @@
 #ifndef __WLC_functions__
 #define __WLC_functions__
 
-#define MINIMUM_FUNCTIONALITY           1
+//#define MINIMUM_FUNCTIONALITY           1
 
 //#define ENABLE_SUMP_BUZZER								1
 // #define ENABLE_TANK_BUZZER								1
@@ -71,6 +71,8 @@ void writeSettingMotorOffRemainingEEPROM(void);
 void readSettingsMotorOffRemainingEEPROM(void);
 long getRemainingTimeMotorOffSaved(void);
 int getRemainingOffTime(void);
+void enableMotorOffTimer(unsigned int offTime);
+void disableMotorOffTimer(void);
 typedef enum {
     BOOT_START = 1,
     MOTOR_START_AT_POWER_UP,

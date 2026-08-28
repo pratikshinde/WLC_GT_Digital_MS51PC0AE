@@ -226,4 +226,14 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Optimized hardware usage by supporting a single CT coil on ADC Channel 9 for both motors.
     - Added independent reference current settings (`AM1` and `AM2`) to allow accurate monitoring of motors with different power ratings.
     - Implemented automatic reference switching in the monitoring loop based on the active motor.
+- **Motor Off-Timer (MF1 / MF2) Fixes & Live Countdown**:
+    - Fixed off-timer enforcement: Configured motor off-times (`MF1` / `MF2`) are now unconditionally observed and accurately timed regardless of stop reasons (sensor cutoff, dry-run, or on-time expiry).
+    - Initialized `motorResetTicks` timestamp accurately upon state transition to ensure precise second-by-second cooldown.
+    - Added live real-time countdown output (`Motor Off Time Remaining: <sec>`) via UART during `MOTOR_OFF_RESET_DELAY`.
+    - Added button press manual override in `Handle_ButtonPresses()` to clear active off-timers when switching between AUTO and MANUAL modes.
+- **COM (Combo / COB) Mode Per-Motor Rest & Dynamic Sump Refill**:
+    - Added independent per-motor rest tracking for `MOTOR_MODE_COM`.
+    - When Motor 1 (Sump to Tank) goes to rest, the system automatically clears Motor 2's rest timer (`motor2InRest = 0`) if the sump is below 100%, allowing Motor 2 (Bore to Sump) to start immediately and replenish the sump while Motor 1 rests.
+    - When Motor 2 completes filling the sump (Sump reaches 100% or `MO2` expires), Motor 2 stops and enters its own rest period (`MF2`).
+    - Added seamless changeover to Borewell (Motor 2) when Sump goes empty (`sourceEmpty`) during Motor 1 operation in both Single and Dual Tank modes.
 
