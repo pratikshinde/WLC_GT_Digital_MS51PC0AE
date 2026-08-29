@@ -91,6 +91,7 @@ void TM1637_set_brightness(const uint8_t value)
 }
 #endif
 
+#if 0
 void TM1637_display_segments(const uint8_t position, const uint8_t segments)
 {
     TM1637_send_command(TM1637_CMD_SET_DATA | TM1637_SET_DATA_F_ADDR);
@@ -99,6 +100,7 @@ void TM1637_display_segments(const uint8_t position, const uint8_t segments)
     TM1637_write_byte(segments);
     TM1637_stop();
 }
+#endif
 
 #if 0
 void TM1637_display_digit(const uint8_t position, const uint8_t digit)

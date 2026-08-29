@@ -231,9 +231,35 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Initialized `motorResetTicks` timestamp accurately upon state transition to ensure precise second-by-second cooldown.
     - Added live real-time countdown output (`Motor Off Time Remaining: <sec>`) via UART during `MOTOR_OFF_RESET_DELAY`.
     - Added button press manual override in `Handle_ButtonPresses()` to clear active off-timers when switching between AUTO and MANUAL modes.
-- **COM (Combo / COB) Mode Per-Motor Rest & Dynamic Sump Refill**:
-    - Added independent per-motor rest tracking for `MOTOR_MODE_COM`.
-    - When Motor 1 (Sump to Tank) goes to rest, the system automatically clears Motor 2's rest timer (`motor2InRest = 0`) if the sump is below 100%, allowing Motor 2 (Bore to Sump) to start immediately and replenish the sump while Motor 1 rests.
-    - When Motor 2 completes filling the sump (Sump reaches 100% or `MO2` expires), Motor 2 stops and enters its own rest period (`MF2`).
-    - Added seamless changeover to Borewell (Motor 2) when Sump goes empty (`sourceEmpty`) during Motor 1 operation in both Single and Dual Tank modes.
+### Changes Made on August 29, 2026 (2026-08-29)
+
+- **Dual Motor Rest & Off-Time TM1637 Rolling Display (`OF1` / `OF2`)**:
+    - Implemented dedicated remaining off-time calculation and multi-screen rolling feedback on the TM1637 6-digit (2x3) display for dual motor configurations.
+    - When both motors are in rest or OFF time (`motor1InRest && motor2InRest`), the display rolls every 3 seconds:
+      - **Screen 1**: Reservoir Levels (Tank % on Line 1, Sump % on Line 2, or Dual Tank / Dual Sump sequences).
+      - **Screen 2**: Motor 1 Off Time -> `OF1` on Line 1 (top), remaining off-time in minutes with decimal point on Line 2 (bottom).
+      - **Screen 3**: Motor 2 Off Time -> `OF2` on Line 1 (top), remaining off-time in minutes with decimal point on Line 2 (bottom).
+    - If only a single motor is in rest, the display automatically shows only the active resting motor's countdown (`OF1` or `OF2`).
+    - Single Motor mode continues displaying `OFF` with its single countdown.
+
+- **COM/COB (Combo Mode) Borewell Sump Replenishment & Off-Time Completion**:
+    - Fixed premature 10-second Bore motor cutoff in Combo mode (`MOTOR_MODE_COM`).
+    - When Motor 1 (Sump to Tank) stops and goes to rest (`MF1`), Motor 2 (Borewell) starts to refill the sump.
+    - If OFF times (`MF1` / `MF2`) are set, Motor 2 is no longer prematurely stopped at 50% sump level. It continues running to fill the sump until:
+      1. **Sump reaches 100% full** (`sumpLevel >= 100`), OR
+      2. **Motor 1 finishes its rest/off-time** (`!motor1InRest` with water present and tank not full), allowing Motor 1 to take over and resume pumping to the tank, OR
+      3. **Motor 2's on-time (`MO2`) expires**.
+    - When Motor 2 stops, it transitions into its configured rest period (`MF2`).
+    - When OFF times are not set (`motorOffTime1 == 0 && motorOffTime2 == 0`), standard cutoff (50% sump when tank < 50%) is preserved.
+
+- **Shivappa Digital Board Hardware Profile (`SHIVAPPA_DIGITAL`)**:
+    - Configured `#define SHIVAPPA_DIGITAL` in `GPIO_Config.h` supporting dedicated board pin assignments:
+      - Sump Level Inputs: 25% on `P1.0`, 50% on `P0.0`, 75% on `P0.1`, 100% on `P3.3`.
+      - Tank Level Inputs: 25% on `P3.5`, 50% on `P3.1`, 75% on `P3.2`, 100% on `P1.2`.
+      - Dry Run Sensor Input: `P1.1`.
+
+- **Flash Memory & String Optimization**:
+    - Streamlined verbose debug strings across `readSettingsEEPROM`, `StateHandler_VoltageFault`, `StateHandler_DryRunFault`, and `checkMotorOffConditions`.
+    - Eliminated ROM overflow errors, enabling clean builds within the 32 KB budget (0 Errors, 0 Warnings) with both standard and full-functionality configurations.
+
 

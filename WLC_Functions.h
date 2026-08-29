@@ -71,6 +71,8 @@ void writeSettingMotorOffRemainingEEPROM(void);
 void readSettingsMotorOffRemainingEEPROM(void);
 long getRemainingTimeMotorOffSaved(void);
 int getRemainingOffTime(void);
+int getMotor1RemainingOffTime(void);
+int getMotor2RemainingOffTime(void);
 void enableMotorOffTimer(unsigned int offTime);
 void disableMotorOffTimer(void);
 typedef enum {
