@@ -262,4 +262,16 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Streamlined verbose debug strings across `readSettingsEEPROM`, `StateHandler_VoltageFault`, `StateHandler_DryRunFault`, and `checkMotorOffConditions`.
     - Eliminated ROM overflow errors, enabling clean builds within the 32 KB budget (0 Errors, 0 Warnings) with both standard and full-functionality configurations.
 
+### Changes Made on September 13, 2026 (2026-09-13)
+
+- **CT Coil Calibration & Burden Resistor Update (1:2500 Ratio with 100Ω Burden)**:
+    - Updated motor current sensing in `ADC_inputs.c` to support a 1:2500 turns ratio CT coil paired with a 100Ω (100R) secondary burden resistor.
+    - Enhanced signal resolution to ~93 peak-to-peak ADC counts per Ampere, enabling clean and accurate current measurements across the 0.5A - 30A range.
+    - Replaced empirical calibration scale with theoretical conversion (`current_rms_mA = current_rms_mA_sec * 2500.0f`).
+- **Protection Logic Current Unit Normalization**:
+    - Fixed a unit mismatch in `WLC_Functions.c` where `currentRMS` (in mA) was compared directly against user reference thresholds `ref` (in Amperes).
+    - Converted `currentRMS / 1000.0f` for overcurrent and dry-run undercurrent evaluation against `AM1`/`AM2` settings, preventing false overcurrent trips.
+    - Formatted overcurrent trip serial debug output to display correctly in Amperes.
+
+
 

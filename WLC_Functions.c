@@ -720,10 +720,11 @@ void updateSensorLED(void)
 #endif
             if (ref > 0)
             {
+                float current_A = currentRMS / 1000.0f;
                 float buffer = ref * 0.20f; // 20%
 
                 // Overcurrent Detection
-                if (currentRMS > (ref + buffer))
+                if (current_A > (ref + buffer))
                 {
                     if (overCurrentStartTicks == 0)
                         overCurrentStartTicks = getTicks100ms();
@@ -740,7 +741,7 @@ void updateSensorLED(void)
                 }
 
                 // Undercurrent (Dry Run) Detection
-                if (currentRMS < (ref - buffer))
+                if (current_A < (ref - buffer))
                 {
                     if (underCurrentStartTicks == 0)
                         underCurrentStartTicks = getTicks100ms();
@@ -3507,7 +3508,7 @@ unsigned int checkMotorOffConditions(void)
 
         if (overCurrentFlag)
         {
-            printf("\r\n Overcurrent Tripped. %0.1fA", currentRMS);
+            printf("\r\n Overcurrent Tripped. %0.1fA", currentRMS / 1000.0f);
             ret_val = 1;
             state = MOTOR_OFF_OVERCURRENT_FAULT;
             voltageFaultTicks = getTicks100ms();

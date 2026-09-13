@@ -216,13 +216,11 @@ float readMotorCurrent(void)
     if (VDD_Voltage > 0)
     {
         float volt_mV = (peak_adc * (float)VDD_Voltage) / 4096.0f;
-        float current_peak_mA_sec = volt_mV / 10.0f;              // 10 Ohm Burden
+        float current_peak_mA_sec = volt_mV / 100.0f;             // 100 Ohm Burden
         float current_rms_mA_sec = current_peak_mA_sec * 0.7071f; // Peak to RMS
 
-        // Convert to primary current (Assuming 1000:1 CT ratio)
-        // Calibrating: Multimeter 2.5A -> Firmware 6.0A.
-        // New Factor = 0.70 * (2.5 / 6.0) = 0.2916
-        current_rms_mA = (current_rms_mA_sec * 1000.0f) * 0.19f;
+        // Convert to primary current (1:2500 CT ratio)
+        current_rms_mA = current_rms_mA_sec * 2500.0f;
 
         // Low-pass Filter for display stability
         if (filtered_rms == 0.0f)
