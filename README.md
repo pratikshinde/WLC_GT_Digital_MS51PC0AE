@@ -284,6 +284,12 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Synchronized CT protection state resets (`resetCTProtection()`) across `Motor1_On()`, `Motor2_On()`, `Motor1_Off()`, and `Motor2_Off()`, ensuring clean inrush blanking windows (4.0s) and timer initializations.
     - Direct CT dry-run fault registration: Integrated `dryRunState` detection under CT mode in `checkMotorOffConditions()`, immediately transitioning to `MOTOR_OFF_DRY_RUN_FAULT` once undercurrent persists beyond the confirmation duration (~4.5s out-of-band relative to set reference current).
     - Guarded sensor-based secondary dry run timeout checks in `StateHandler_SecondaryDryRunCheck()` to only apply when CT is disabled (`!GlobalSettings.ctEnable`), while unifying dry-run failover and fault handling for both CT-based and sensor-based modes.
+- **Live Reference Current Capture (One-Touch Amps Setting via ON Button)**:
+    - Added one-touch reference current setting during active motor running in primary dry-run check state (`MOTOR_ON_PRIMARY_DRY_RUN_CHECK`).
+    - When the alternating TM1637 display screen shows the live motor current (`AMP` / `AM1` / `AM2`), pressing the **ON button** (SW1) instantly captures the real-time RMS current as the reference current threshold (`AM1` for Motor 1 or single-motor, `AM2` for Motor 2).
+    - Rounded automatically to the nearest 0.1A before saving (e.g., 5.67A rounds to 5.7A).
+    - Automatically persists new reference settings to DataFlash EEPROM (`writeSettingEEPROM()`) and outputs serial confirmation.
+    - Displays a 3-second visual confirmation on the TM1637 display (`AMP`/`AM1`/`AM2` on Line 1, captured value on Line 2) before resuming normal cyclic monitoring.
 
 
 

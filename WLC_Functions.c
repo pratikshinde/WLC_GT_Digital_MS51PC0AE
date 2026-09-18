@@ -106,6 +106,7 @@ static unsigned long dryRunBuzzerStartTicks = 0;
 static unsigned char lastDryRunMotor = 0;
 extern float lineVoltage;
 
+static unsigned char currentDisplayPhase = 0; // 0=normal, 2=AMP display phase (used for live ref current capture)
 unsigned char switch_val = 0;
 unsigned char auto_press_count = 0;
 unsigned char reset_press_count = 0;
@@ -244,6 +245,7 @@ static void displayOffTimeRolling(unsigned char slot)
 void refreshCurrentDisplay(void)
 {
     unsigned char showAltDisplay = 0;
+    currentDisplayPhase = 0; // Reset each cycle; set to 2 only when AMP is displayed
 #ifdef MINIMUM_FUNCTIONALITY
     if (GlobalSettings.dualTankEnable == 1)
 #else
@@ -360,6 +362,7 @@ void refreshCurrentDisplay(void)
                             val = 999;
                         TM1637_WriteString(1, "AMP");
                         TM1637_WriteNumberCurrent(2, val);
+                        currentDisplayPhase = 2;
                     }
                     else if (showAltDisplay == 1)
                     {
@@ -587,6 +590,7 @@ void refreshCurrentDisplay(void)
                             val = 999;
                         TM1637_WriteString(1, "AMP");
                         TM1637_WriteNumberCurrent(2, val);
+                        currentDisplayPhase = 2;
                     }
                     else
                     {
@@ -1944,7 +1948,56 @@ static void Handle_ButtonPresses(void)
     }
     if (switch_val == 1) // Motor On Button Pressed, It will also clear dry run fault state
     {
-        if ((GlobalSettings.workMode == WORKING_MODE_AUTO) && (state != MOTOR_ON_SECONDARY_DRY_CHECK))
+        // Live Reference Current Capture: ON button during AMP display in Primary Dry Run Check
+        if (motorState && state == MOTOR_ON_PRIMARY_DRY_RUN_CHECK
+            && currentDisplayPhase == 2
+            && GlobalSettings.ctEnable && currentRMS > 0)
+        {
+            float captured_current = currentRMS / 1000.0f;
+            unsigned char motor_channel = 1;
+
+            // Round to nearest 0.1A
+            captured_current = ((unsigned int)(captured_current * 10.0f + 0.5f)) / 10.0f;
+
+#ifndef MINIMUM_FUNCTIONALITY
+            if (GlobalSettings.dualMotorEnable)
+            {
+                if (O_RLY_2 || O_RLY_3)
+                    motor_channel = 2;
+            }
+#endif
+
+            if (motor_channel == 2)
+            {
+                GlobalSettings.referenceCurrent2 = captured_current;
+                TM1637_WriteString(1, "AM2");
+            }
+            else
+            {
+                GlobalSettings.referenceCurrent1 = captured_current;
+#ifndef MINIMUM_FUNCTIONALITY
+                if (GlobalSettings.dualMotorEnable)
+                    TM1637_WriteString(1, "AM1");
+                else
+#endif
+                    TM1637_WriteString(1, "AMP");
+            }
+
+            // Show saved value on display
+            {
+                unsigned int disp_val = (unsigned int)(captured_current * 10.0f);
+                TM1637_WriteNumberCurrent(2, disp_val);
+            }
+            printf("\r\nRef Current Set: %0.1fA (M%d)", captured_current, (int)motor_channel);
+            writeSettingEEPROM();
+
+            // 3-second confirmation display
+            {
+                unsigned long confirm_ticks = getTicks100ms();
+                while ((getTicks100ms() - confirm_ticks) < 30) ; // 30 * 100ms = 3 seconds
+            }
+        }
+        else if ((GlobalSettings.workMode == WORKING_MODE_AUTO) && (state != MOTOR_ON_SECONDARY_DRY_CHECK))
         {
             if ((tankLevel != 100) && (motorState == 0))
             {
