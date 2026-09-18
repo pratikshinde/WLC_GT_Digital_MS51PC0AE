@@ -273,5 +273,17 @@ The firmware has recently undergone a comprehensive stability and logic audit to
     - Converted `currentRMS / 1000.0f` for overcurrent and dry-run undercurrent evaluation against `AM1`/`AM2` settings, preventing false overcurrent trips.
     - Formatted overcurrent trip serial debug output to display correctly in Amperes.
 
+### Changes Made on September 18, 2026 (2026-09-18)
+
+- **CT Calibration Multiplier & Filter Optimization**:
+    - Introduced `CT_CALIBRATION_FACTOR` `(10.0f / 7.0f)` in `ADC_inputs.h` and applied in `ADC_inputs.c` to calibrate measured primary current readings against panel meters (~30% calibration adjustment).
+    - Added `resetMotorCurrentFilter()` function to clear the low-pass filter accumulator upon motor state changes.
+    - Applied zero-floor clamp (`< 200 mA` reset to `0 mA` when `peak_adc == 0`) to prevent display drift and residual current display when motor is idle.
+    - Cleaned up verbose CT ADC sampling printouts to reduce serial overhead and improve loop responsiveness.
+- **CT Fault Protection & Secondary Dry Run Enhancements**:
+    - Synchronized CT protection state resets (`resetCTProtection()`) across `Motor1_On()`, `Motor2_On()`, `Motor1_Off()`, and `Motor2_Off()`, ensuring clean inrush blanking windows (4.0s) and timer initializations.
+    - Direct CT dry-run fault registration: Integrated `dryRunState` detection under CT mode in `checkMotorOffConditions()`, immediately transitioning to `MOTOR_OFF_DRY_RUN_FAULT` once undercurrent persists beyond the confirmation duration (~4.5s out-of-band relative to set reference current).
+    - Guarded sensor-based secondary dry run timeout checks in `StateHandler_SecondaryDryRunCheck()` to only apply when CT is disabled (`!GlobalSettings.ctEnable`), while unifying dry-run failover and fault handling for both CT-based and sensor-based modes.
+
 
 

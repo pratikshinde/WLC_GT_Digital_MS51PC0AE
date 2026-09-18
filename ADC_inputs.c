@@ -157,6 +157,13 @@ void readVdd(void)
     VDD_Voltage = (0x1000 / bgvalue) * Bandgap_Voltage;
 }
 
+static float filtered_motor_rms = 0.0f;
+
+void resetMotorCurrentFilter(void)
+{
+    filtered_motor_rms = 0.0f;
+}
+
 float readMotorCurrent(void)
 {
     unsigned int temp;
@@ -165,13 +172,9 @@ float readMotorCurrent(void)
     unsigned int i;
     float current_rms_mA = 0.0;
     unsigned int peak_adc = 0;
-    static float filtered_rms = 0.0;
-
-    printf("\r\nCT Reading.");
 
     // Single CT coil used for both motors - read from Channel 9 (P00/AIN9)
     ENABLE_ADC_CH9;
-
     ADCCON1 |= 0X30; /* clock divider */
     ADCCON2 |= 0X0E; /* AQT time */
 
@@ -190,9 +193,6 @@ float readMotorCurrent(void)
 
         // Small delay to stretch sampling across multiple AC cycles
         Timer0_Delay(24000000, 1, 50);
-
-        if (i % 500 == 0)
-            printf(".");
     }
 
     DISABLE_ADC;
@@ -219,27 +219,28 @@ float readMotorCurrent(void)
         float current_peak_mA_sec = volt_mV / 100.0f;             // 100 Ohm Burden
         float current_rms_mA_sec = current_peak_mA_sec * 0.7071f; // Peak to RMS
 
-        // Convert to primary current (1:2500 CT ratio)
-        current_rms_mA = current_rms_mA_sec * 2500.0f;
+        // Convert to primary current (1:2500 CT ratio) calibrated against panel meter
+        current_rms_mA = current_rms_mA_sec * 2500.0f * CT_CALIBRATION_FACTOR;
 
         // Low-pass Filter for display stability
-        if (filtered_rms == 0.0f)
-            filtered_rms = current_rms_mA;
-        filtered_rms = (filtered_rms * 0.8f) + (current_rms_mA * 0.2f);
+        if (filtered_motor_rms == 0.0f)
+            filtered_motor_rms = current_rms_mA;
+        filtered_motor_rms = (filtered_motor_rms * 0.8f) + (current_rms_mA * 0.2f);
+        if (peak_adc == 0 && filtered_motor_rms < 200.0f)
+            filtered_motor_rms = 0.0f;
 
-        printf("\r\n Max: %u, Min: %u, P-P: %u, mA: %d",
+        printf("\r\n Max: %u, Min: %u, P-P: %u, mA: %d\r\n",
                (unsigned int)max_val,
                (unsigned int)min_val,
                (unsigned int)(max_val - min_val),
-               (int)filtered_rms);
+               (int)filtered_motor_rms);
 
-        current_rms_mA = filtered_rms;
+        current_rms_mA = filtered_motor_rms;
     }
     else
     {
         printf("\r\n Raw: %u-%u (No VDD)", (unsigned int)max_val, (unsigned int)min_val);
     }
 
-    printf("..Done\r\n");
     return current_rms_mA;
 }

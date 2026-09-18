@@ -87,6 +87,15 @@ unsigned char overCurrentFlag = 0;
 unsigned char underCurrentFlag = 0;
 unsigned long underCurrentStartTicks = 0, overCurrentStartTicks = 0;
 
+static void resetCTProtection(void)
+{
+    overCurrentStartTicks = 0;
+    underCurrentStartTicks = 0;
+    overCurrentFlag = 0;
+    dryRunState = 0;
+    resetMotorCurrentFilter();
+}
+
 // ALT Mode: Per-motor independent rest tracking
 unsigned char motor1InRest = 0, motor2InRest = 0;
 unsigned long motor1RestStartTicks = 0, motor2RestStartTicks = 0;
@@ -642,10 +651,6 @@ void updateSensorLED(void)
     {
         dryRunState = 1;
     }
-    else
-    {
-        dryRunState = 0;
-    }
     ENABLE_TIMER0_MODE1; /* Timer 0 mode configuration */
     TIMER0_FSYS_DIV12;
     TH0 = TH0_INIT;
@@ -723,56 +728,59 @@ void updateSensorLED(void)
                 float current_A = currentRMS / 1000.0f;
                 float buffer = ref * 0.20f; // 20%
 
-                // Overcurrent Detection
-                if (current_A > (ref + buffer))
+                // Inrush / Startup blanking window: first 4.0 seconds (40 ticks of 100ms)
+                if ((getTicks100ms() - motorElapsedTicks) < 40)
                 {
-                    if (overCurrentStartTicks == 0)
-                        overCurrentStartTicks = getTicks100ms();
-                    else if ((getTicks100ms() - overCurrentStartTicks) >= 50) // 5 seconds
-                    {
-                        overCurrentFlag = 1;
-                        dryRunState = 0;
-                    }
+                    resetCTProtection();
                 }
                 else
                 {
-                    overCurrentStartTicks = 0;
-                    overCurrentFlag = 0;
-                }
-
-                // Undercurrent (Dry Run) Detection
-                if (current_A < (ref - buffer))
-                {
-                    if (underCurrentStartTicks == 0)
-                        underCurrentStartTicks = getTicks100ms();
-                    else if ((getTicks100ms() - underCurrentStartTicks) >= 50) // 5 seconds
+                    // Overcurrent Detection: sustained for 4.5 seconds (45 ticks of 100ms)
+                    if (current_A > (ref + buffer))
                     {
-                        dryRunState = 1;
+                        if (overCurrentStartTicks == 0)
+                            overCurrentStartTicks = getTicks100ms();
+                        else if ((getTicks100ms() - overCurrentStartTicks) >= 45)
+                        {
+                            overCurrentFlag = 1;
+                            dryRunState = 0;
+                        }
+                    }
+                    else
+                    {
+                        overCurrentStartTicks = 0;
                         overCurrentFlag = 0;
                     }
-                }
-                else
-                {
-                    underCurrentStartTicks = 0;
-                    if (!overCurrentFlag)
-                        dryRunState = 0;
+
+                    // Undercurrent (Dry Run) Detection: sustained for 4.5 seconds (45 ticks of 100ms)
+                    if (current_A < (ref - buffer))
+                    {
+                        if (underCurrentStartTicks == 0)
+                            underCurrentStartTicks = getTicks100ms();
+                        else if ((getTicks100ms() - underCurrentStartTicks) >= 45)
+                        {
+                            dryRunState = 1;
+                            overCurrentFlag = 0;
+                        }
+                    }
+                    else
+                    {
+                        underCurrentStartTicks = 0;
+                        if (!overCurrentFlag)
+                            dryRunState = 0;
+                    }
                 }
             }
             else
             {
-                dryRunState = 0;
-                overCurrentFlag = 0;
-                underCurrentStartTicks = 0;
-                overCurrentStartTicks = 0;
+                resetCTProtection();
             }
         }
     }
     else
     {
         currentRMS = 0;
-        overCurrentFlag = 0;
-        underCurrentStartTicks = 0;
-        overCurrentStartTicks = 0;
+        resetCTProtection();
     }
 
     clr_TCON_TR0;
@@ -1754,6 +1762,11 @@ void Motor1_On()
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
     motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
+    overCurrentStartTicks = 0;
+    underCurrentStartTicks = 0;
+    overCurrentFlag = 0;
+    dryRunState = 0;
+    resetMotorCurrentFilter();
 
     /* Relay switching causes inductive spikes / EMI that can corrupt the
        bit-banged TM1637 protocol.  Wait for the noise to settle, then
@@ -1840,6 +1853,11 @@ void Motor2_On()
     motorOnIndicationFlag = motorRunningCount = motorOffInitFlag = dryRunResetInitFlag = 0;
     motorOffBySensorFlag = 0;
     motorElapsedTicks = getTicks100ms();
+    overCurrentStartTicks = 0;
+    underCurrentStartTicks = 0;
+    overCurrentFlag = 0;
+    dryRunState = 0;
+    resetMotorCurrentFilter();
 
     /* Relay switching causes inductive spikes / EMI that can corrupt the
        bit-banged TM1637 protocol.  Wait for the noise to settle, then
@@ -1868,6 +1886,7 @@ void Motor2_Off()
         L_MOT1_ON = 0;
         // L_MOT2_ON = 0; // Not used/mapped
         motorResetTicks = getTicks100ms();
+        resetCTProtection();
 
         /* Relay switching causes inductive spikes / EMI that can corrupt the
            bit-banged TM1637 protocol.  Wait for the noise to settle, then
@@ -1892,6 +1911,11 @@ void Motor1_Off()
         runningMotor = 0;
         L_MOT1_ON = 0;
         motorResetTicks = getTicks100ms();
+        overCurrentStartTicks = 0;
+        underCurrentStartTicks = 0;
+        overCurrentFlag = 0;
+        dryRunState = 0;
+        resetMotorCurrentFilter();
 
         /* Relay switching causes inductive spikes / EMI that can corrupt the
            bit-banged TM1637 protocol.  Wait for the noise to settle, then
@@ -2224,71 +2248,69 @@ static void StateHandler_SecondaryDryRunCheck(void)
     }
     else
     {
-        if (GlobalSettings.dryRunTimeOut)
+        if (!GlobalSettings.ctEnable && GlobalSettings.dryRunTimeOut &&
+            ((getTicks100ms() - state_ticks_100ms) / 10 < GlobalSettings.secondaryDryRunDuration))
         {
-            if ((getTicks100ms() - state_ticks_100ms) / 10 < GlobalSettings.secondaryDryRunDuration)
+            printf("\r\n2nd DR rem:%ld", (GlobalSettings.secondaryDryRunDuration) - (getTicks100ms() - state_ticks_100ms) / 10);
+            flowLEDsMotorDryRunCheck();
+            if (tankLevel >= 100)
             {
-                printf("\r\n2nd DR rem:%ld", (GlobalSettings.secondaryDryRunDuration) - (getTicks100ms() - state_ticks_100ms) / 10);
-                flowLEDsMotorDryRunCheck();
-                if (tankLevel >= 100)
+                // In COM mode with Motor 2 (bore to sump), tank is already full.
+                // Don't abort dry run check — Motor 2 fills the sump, not the tank.
+                if (!(GlobalSettings.motorMode == MOTOR_MODE_COM && runningMotor == 2))
                 {
-                    // In COM mode with Motor 2 (bore to sump), tank is already full.
-                    // Don't abort dry run check — Motor 2 fills the sump, not the tank.
-                    if (!(GlobalSettings.motorMode == MOTOR_MODE_COM && runningMotor == 2))
-                    {
-                        Motor1_Off();
-                        Motor2_Off();
-                        state = MOTOR_OFF_SYSTEM_IDLE;
-                        flowLEDsMotorOff();
-                    }
+                    Motor1_Off();
+                    Motor2_Off();
+                    state = MOTOR_OFF_SYSTEM_IDLE;
+                    flowLEDsMotorOff();
+                }
+            }
+        }
+        else if (GlobalSettings.ctEnable || GlobalSettings.dryRunTimeOut)
+        {
+            if (GlobalSettings.dualMotorEnable)
+            {
+                if (O_RLY_0 || O_RLY_1)
+                {
+                    motor1FaultFlag = 1;
+                    lastDryRunMotor = 1;
+                }
+                if (O_RLY_2 || O_RLY_3)
+                {
+                    motor2FaultFlag = 1;
+                    lastDryRunMotor = 2;
+                }
+
+                Motor1_Off();
+                Motor2_Off();
+
+                dryRunBuzzerActive = 1;
+                dryRunBuzzerStartTicks = getTicks100ms();
+
+                if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR)
+                {
+                    state = MOTOR_OFF_DRY_RUN_FAULT;
+                    printf("\r\nDry Run Fault (Non-Alternating Mode)");
+                }
+                else if (motor1FaultFlag && motor2FaultFlag)
+                {
+                    state = MOTOR_OFF_DRY_RUN_FAULT;
+                    printf("\r\nDry Run Fault All");
+                }
+                else
+                {
+                    state = MOTOR_ON;
                 }
             }
             else
             {
-                if (GlobalSettings.dualMotorEnable)
-                {
-                    if (O_RLY_0 || O_RLY_1)
-                    {
-                        motor1FaultFlag = 1;
-                        lastDryRunMotor = 1;
-                    }
-                    if (O_RLY_2 || O_RLY_3)
-                    {
-                        motor2FaultFlag = 1;
-                        lastDryRunMotor = 2;
-                    }
-
-                    Motor1_Off();
-                    Motor2_Off();
-
-                    dryRunBuzzerActive = 1;
-                    dryRunBuzzerStartTicks = getTicks100ms();
-
-                    if (GlobalSettings.motorMode == MOTOR_MODE_SUM || GlobalSettings.motorMode == MOTOR_MODE_BOR)
-                    {
-                        state = MOTOR_OFF_DRY_RUN_FAULT;
-                        printf("\r\nDry Run Fault (Non-Alternating Mode)");
-                    }
-                    else if (motor1FaultFlag && motor2FaultFlag)
-                    {
-                        state = MOTOR_OFF_DRY_RUN_FAULT;
-                        printf("\r\nDry Run Fault All");
-                    }
-                    else
-                    {
-                        state = MOTOR_ON;
-                    }
-                }
-                else
-                {
-                    state = MOTOR_OFF_DRY_RUN_FAULT;
-                    lastDryRunMotor = 1;
-                    Motor1_Off();
-                    Motor2_Off();
-                    dryRunBuzzerActive = 1;
-                    dryRunBuzzerStartTicks = getTicks100ms();
-                    printf("\r\nDry Run Fault");
-                }
+                state = MOTOR_OFF_DRY_RUN_FAULT;
+                lastDryRunMotor = 1;
+                Motor1_Off();
+                Motor2_Off();
+                dryRunBuzzerActive = 1;
+                dryRunBuzzerStartTicks = getTicks100ms();
+                printf("\r\nDry Run Fault");
             }
         }
         else
@@ -3512,6 +3534,14 @@ unsigned int checkMotorOffConditions(void)
             ret_val = 1;
             state = MOTOR_OFF_OVERCURRENT_FAULT;
             voltageFaultTicks = getTicks100ms();
+        }
+
+        if (GlobalSettings.ctEnable && dryRunState)
+        {
+            printf("\r\nDry Run Fault");
+            ret_val = 1;
+            dryRunResetInitFlag = 0;
+            state = MOTOR_OFF_DRY_RUN_FAULT;
         }
     }
     return ret_val;
